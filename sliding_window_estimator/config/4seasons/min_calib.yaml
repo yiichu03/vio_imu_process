@@ -1,0 +1,176 @@
+%YAML:1.0
+cameras:
+     - {T_SC:
+        [-0.99988522426424, -0.00689016185976639, 0.013493108151807, 0.176201487436514,
+         -0.0135229610785441, 0.0043046370293384, -0.999899294741082, -0.0557440651252651,
+         0.00683138505124118, -0.999966997340208, -0.00439731835211073, 0.00223549241705703,
+         0.0, 0.0, 0.0, 1.0],
+        image_dimension: [800, 400],
+        distortion_coefficients: [-0.03559759964255725, -0.005093721310999416, 0.019716282737702494, -0.01583280039499382],
+        distortion_type: equidistant,
+        focal_length: [527.9990706330082, 527.963495807245],
+        principal_point: [399.18451401412665, 172.8193108347693],
+        projection_intrinsic_rep: FIXED,
+        extrinsic_rep: FIXED,
+        image_delay: 0.0,
+        image_readout_time: 0.00}
+
+     - {T_SC:
+        [-0.999994872920322, 0.0031734672776253, 0.000428063671263342, -0.124311767031293,
+         -0.000411040346030494, 0.00536297969589576, -0.999985534642684, -0.0566833978313005,
+         -0.00317571706906474, -0.999980583588611, -0.00536164777638367, 0.0016487325719239,
+         0.0, 0.0, 0.0, 1.0],
+        image_dimension: [800, 400],
+        distortion_coefficients: [-0.03696481607810142, 0.0102400942942071, -0.01632902510720569, 0.009597717025035516],
+        distortion_type: equidistant,
+        focal_length: [529.2496538273606, 529.4013679656194],
+        principal_point: [412.4733148308946, 172.1405434152354],
+        projection_intrinsic_rep: FIXED,
+        extrinsic_rep: FIXED,
+        image_delay: 0.0,
+        image_readout_time: 0.00}
+
+monocular_input: true
+
+camera_params:
+    camera_rate: 30 # just to manage the expectations of when there should be frames arriving
+    sigma_absolute_translation: 0.02 # The standard deviation of the camera extrinsics translation, e.g. 1.0e-10 for online-calib [m].
+    sigma_absolute_orientation: 0.01 # The standard deviation of the camera extrinsics orientation, e.g. 1.0e-3 for online-calib [rad].
+    sigma_c_relative_translation: 1.0e-6 # The std. dev. of the cam. extr. transl. change between frames, e.g. 1.0e-6 for adaptive online calib (not less for numerics) [m].
+    sigma_c_relative_orientation: 1.0e-6 # The std. dev. of the cam. extr. orient. change between frames, e.g. 1.0e-6 for adaptive online calib (not less for numerics) [rad].
+    timestamp_tolerance: 0.005 # [s] stereo frame out-of-sync tolerance
+    sigma_focal_length: 0.0
+    sigma_principal_point: 0.0
+    sigma_distortion: [0.0, 0.0, 0.0, 0.0, 0.0]
+    sigma_td: 0.005
+    sigma_tr: 0.005
+
+imu_params:
+    a_max: 176.0 # acceleration saturation [m/s^2]
+    g_max: 7.8 # gyro saturation [rad/s]
+    sigma_g_c: 5.0e-4 # 1.1e-3 # gyro noise density [rad/s/sqrt(Hz)] adis16465 datasheet: 0.26 deg/sqrt(hr), 0.0065 deg/sec/sqrt(Hz), scale up 10x
+    sigma_a_c: 1.0e-3 # 2.3e-3 # accelerometer noise density [m/s^2/sqrt(Hz)] adis16465 datasheet: 0.012 m/sec/sqrt(hr), 23 ug/sqrt(Hz), scale up 10x
+    sigma_bg: 0.03 # gyro bias prior [rad/s]
+    sigma_ba: 0.1 # accelerometer bias prior [m/s^2]
+    sigma_gw_c: 4.0e-6 # gyro drift noise density [rad/s^2/sqrt(Hz)]
+    sigma_aw_c: 4.0e-5 # accelerometer drift noise density [m/s^3/sqrt(Hz)]
+    tau: 3600.0 # reversion time constant, currently not in use [s]
+    g: 9.80729 # Earth's acceleration due to gravity [m/s^2]
+    a0: [ 0.0, 0.0, 0.0 ] # Accelerometer bias [m/s^2]
+    imu_rate: 2000
+    # tranform Body-Sensor (IMU)
+    T_BS:
+        [1.0000, 0.0000, 0.0000, 0.0000,
+         0.0000, 1.0000, 0.0000, 0.0000,
+         0.0000, 0.0000, 1.0000, 0.0000,
+         0.0000, 0.0000, 0.0000, 1.0000]
+    sigma_Mg_element: 0.0
+    sigma_Ts_element: 0.0
+    sigma_Ma_element: 0.0
+    model_name: BG_BA
+
+initial_state:
+    sigma_v_WS: [0.1, 0.1, 0.1]
+    sigma_q_WS: [0.2, 0.2, 0.05]
+    sigma_p_WS: [0.1, 0.1, 0.1]
+
+# Estimator parameters
+optimization:
+    numKeyframes: 5 # number of keyframes in optimisation window
+    numImuFrames: 3 # number of frames linked by most recent nonlinear IMU error terms
+    minMarginalizedFrames: 2 # min number of marginalization frames in each marginalization step aplies to filters.
+    algorithm: "SlidingWindowFilter"
+    initializer: "ImuInitializer"
+    useEpipolarConstraint: false
+    cameraObservationModelId: 0
+    computeOkvisNees: 0
+    useMahalanobisGating: 1
+    maxProjectionErrorTol: 7
+
+frontend:
+    useMedianFilter: false
+    histogramMethod: histogram
+    stereoMatchWithEpipolarCheck: true
+    numKeyframesToMatch: 2
+    numOldKeyframesToMatch: 0
+    epipolarDistanceThreshold: 3.0
+    featureTrackingMethod: 0
+    numThreads: 4
+    allAreKeyframes: false
+
+point_landmark:
+    landmarkModelId: 1
+    minTrackLength: 3
+    minTrackLengthForSlam: 7
+    maxHibernationFrames: 3
+    maxInStateLandmarks: 50
+    maxMarginalizedLandmarks: 50
+    triangulationMaxDepth: 1000.0
+
+pose_graph:
+    maxOdometryConstraintForAKeyframe: 2
+
+# ceres optimization options
+ceres_options:
+    minIterations: 3   # minimum number of iterations always performed
+    maxIterations: 10  # never do more than these, even if not converged
+    timeLimit: 0.035   # [s] negative values will set the an unlimited time limit
+
+# detection
+detection_options:
+    threshold: 40.0      # detection threshold. By default the uniformity radius in pixels
+    octaves: 0           # number of octaves for detection. 0 means single-scale at highest resolution
+    maxNoKeypoints: 400  # restrict to a maximum of this many keypoints per image (strongest ones)
+
+viz_options:
+    # display debug images?
+    displayImages: true  # displays debug video and keyframe matches. May be slow.
+
+# use direct driver
+useDriver: false
+
+# some options for how and what to publish -- optional in ROS-free version
+publishing_options:
+    publish_rate: 100                  # rate at which odometry updates are published only works properly if imu_rate/publish_rate is an integer!!
+    publishLandmarks: true             # select, if you want to publish landmarks at all
+    landmarkQualityThreshold: 1.0e-2   # landmark with lower quality will not be published
+    maximumLandmarkQuality: 0.05       # landmark with higher quality will be published with the maximum colour intensity
+    maxPathLength: 20                  # maximum length of the published path
+    publishImuPropagatedState: false    # Should the state that is propagated with IMU messages be published? Or just the optimized ones?
+    # provide custom World frame Wc
+    T_Wc_W:
+        [1.0000, 0.0000, 0.0000, 0.0000,
+         0.0000, 1.0000, 0.0000, 0.0000,
+         0.0000, 0.0000, 1.0000, 0.0000,
+         0.0000, 0.0000, 0.0000, 1.0000]
+    trackedBodyFrame: B                # B or S, the frame of reference that will be expressed relative to the selected worldFrame
+    velocitiesFrame: Wc                # Wc, B or S,  the frames in which the velocities of the selected trackedBodyFrame will be expressed in
+
+# gtsam smoother options
+backend_modality: 0 # 0 structureless factors, 1 projection factors.
+smartNoiseSigma: 1.5
+rankTolerance: 1.0
+landmarkDistanceThreshold: 20.0
+
+outlierRejection: 8.0
+retriangulationThreshold: 1.0e-3
+addBetweenStereoFactors: 1
+
+betweenRotationPrecision: 0.0
+betweenTranslationPrecision: 100
+
+relinearizeThreshold: 1.0e-2
+relinearizeSkip: 1.0
+
+numOptimize: 1
+wildfire_threshold: 0.001
+useDogLeg: 0
+
+initialLambda: 0.0    # same as GN
+lowerBoundLambda: 0.0 # same as GN
+upperBoundLambda: 0.0 # same as GN
+
+zeroVelocitySigma: 1.0e-3
+noMotionPositionSigma: 1.0e-3
+noMotionRotationSigma: 1.0e-4
+constantVelSigma: 1.0e-2

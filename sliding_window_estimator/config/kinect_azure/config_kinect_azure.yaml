@@ -1,0 +1,174 @@
+%YAML:1.0
+# camera intrinsic parameters found from the rostopic /rgb/camera_info.
+# camera IMU nominal relative pose found at 
+# https://docs.microsoft.com/en-us/azure/kinect-dk/coordinate-systems
+# Device specific camera to IMU relative pose is printed by the azure ROS driver on screen as below.
+# Note the translation is in mm, rotation is in row major order.
+# [ INFO] [1659073181.940733020]: 	 IMU (Color to IMU):
+# [ INFO] [1659073181.940745759]: 		 Extrinsics:
+# [ INFO] [1659073181.940761161]: 			 Translation: -46.9839, -28.2357, 3.21511
+# [ INFO] [1659073181.940776352]: 			 Rotation[0]: -0.00124713, 0.00254327, -0.999996
+# [ INFO] [1659073181.940791472]: 			 Rotation[1]: -0.999997, -0.00184772, 0.00124243
+# [ INFO] [1659073181.940806165]: 			 Rotation[2]: -0.00184456, 0.999995, 0.00254557
+
+
+cameras:
+     - {T_SC:
+        [-0.00124713, 0.00254327, -0.999996, -46.9839e-3,
+         -0.999997, -0.00184772, 0.00124243, -28.2357e-3,
+         -0.00184456, 0.999995, 0.00254557, 3.21511e-3,
+         0.0, 0.0, 0.0, 1.0],
+        image_dimension: [2048, 1536],
+        distortion_coefficients: [0.380012571811676, -2.8389906883239746, 0.00035430010757409036, -0.0001745319168549031, 1.801529049873352, 0.2595064640045166, -2.644275426864624, 1.7114615440368652],
+        distortion_type: radialtangential,
+        focal_length: [974.6858520507812, 974.5856323242188],
+        principal_point: [1023.9749755859375, 774.884521484375],
+        projection_intrinsic_rep: FXY_CXY,
+        extrinsic_rep: P_BC_Q_BC,
+        image_delay: 0.0,
+        image_readout_time: 0.024}
+monocular_input: true
+
+camera_params:
+    camera_rate: 25 # just to manage the expectations of when there should be frames arriving
+    sigma_absolute_translation: 0.03 # The standard deviation of the camera extrinsics translation, e.g. 1.0e-10 for online-calib [m].
+    sigma_absolute_orientation: 0.02 # The standard deviation of the camera extrinsics orientation, e.g. 1.0e-3 for online-calib [rad].
+    sigma_c_relative_translation: 1.0e-6 # The std. dev. of the cam. extr. transl. change between frames, e.g. 1.0e-6 for adaptive online calib (not less for numerics) [m].
+    sigma_c_relative_orientation: 1.0e-6 # The std. dev. of the cam. extr. orient. change between frames, e.g. 1.0e-6 for adaptive online calib (not less for numerics) [rad].
+    timestamp_tolerance: 0.005 #[s]stereo frame out-of-sync tolerance
+    sigma_focal_length: 0.0
+    sigma_principal_point: 0.0
+    sigma_distortion: [0.0, 0.0, 0.0, 0.0, 0.0]
+    sigma_td: 0.02
+    sigma_tr: 0.02
+
+imu_params:
+    a_max: 176.0 # acceleration saturation [m/s^2]
+    g_max: 7.8 # gyro saturation [rad/s]
+    sigma_g_c: 12.0e-4 # gyro noise density [rad/s/sqrt(Hz)] # 24e-4
+    sigma_a_c: 8.0e-3 # accelerometer noise density [m/s^2/sqrt(Hz)] # 16e-3
+    sigma_bg: 0.03 # gyro bias prior [rad/s]
+    sigma_ba: 0.1 # accelerometer bias prior [m/s^2]
+    sigma_gw_c: 2.0e-5 # gyro drift noise density [rad/s^s/sqrt(Hz)]
+    sigma_aw_c: 5.5e-5 # accelerometer drift noise density [m/s^2/sqrt(Hz)]
+    tau: 3600.0 # reversion time constant, currently not in use [s]
+    g: 9.794 # Earth's acceleration due to gravity [m/s^2] at 325 LIESMARS lab
+    a0: [ 0.0, 0.0, 0.0 ] # Accelerometer bias [m/s^2]
+    imu_rate: 1650
+    # tranform Body-Sensor (IMU)
+    T_BS:
+        [1.0000, 0.0000, 0.0000, 0.0000,
+         0.0000, 1.0000, 0.0000, 0.0000,
+         0.0000, 0.0000, 1.0000, 0.0000,
+         0.0000, 0.0000, 0.0000, 1.0000]
+    sigma_Mg_element: 0.0
+    sigma_Ts_element: 0.0
+    sigma_Ma_element: 0.0
+    model_name: BG_BA
+
+initial_state:
+    sigma_v_WS: [0.1, 0.1, 0.1]
+    sigma_q_WS: [0.01, 0.01, 0.001]
+    sigma_p_WS: [0.01, 0.01, 0.01]
+
+# Estimator parameters
+optimization:
+    numKeyframes: 5 # number of keyframes in optimisation window
+    numImuFrames: 4 # number of frames linked by most recent nonlinear IMU error terms
+    minMarginalizedFrames: 1 # min number of marginalization frames in each marginalization step aplies to filters.
+    algorithm: "SlidingWindowFilter"
+    initializer: "ImuInitializer"
+    useEpipolarConstraint: false
+    cameraObservationModelId: 0
+    computeOkvisNees: 0
+    useMahalanobisGating: 1
+    maxProjectionErrorTol: 7
+
+frontend:
+    useMedianFilter: false
+    histogramMethod: histogram
+    stereoMatchWithEpipolarCheck: true
+    numKeyframesToMatch: 2
+    numOldKeyframesToMatch: 0
+    epipolarDistanceThreshold: 2.0
+    featureTrackingMethod: 0
+    numThreads: 4
+    allAreKeyframes: false
+
+point_landmark:
+    landmarkModelId: 1
+    minTrackLength: 3
+    minTrackLengthForSlam: 4
+    maxHibernationFrames: 3
+    maxInStateLandmarks: 50
+    maxMarginalizedLandmarks: 50
+    triangulationMaxDepth: 1000.0
+
+pose_graph:
+    maxOdometryConstraintForAKeyframe: 2
+
+# ceres optimization options
+ceres_options:
+    minIterations: 3   # minimum number of iterations always performed
+    maxIterations: 10  # never do more than these, even if not converged
+    timeLimit: -1      # [s] negative values will set the an unlimited time limit
+
+# detection
+detection_options:
+    threshold: 40.0      # detection threshold. By default the uniformity radius in pixels
+    octaves: 0           # number of octaves for detection. 0 means single-scale at highest resolution
+    maxNoKeypoints: 400  # restrict to a maximum of this many keypoints per image (strongest ones)
+
+viz_options:
+    # display debug images?
+    displayImages: true  # displays debug video and keyframe matches. May be slow.
+    downscaleFactor: 4
+
+# use direct driver
+useDriver: false 
+
+# some options for how and what to publish -- optional in ROS-free version
+publishing_options:
+    publish_rate: 100                  # rate at which odometry updates are published only works properly if imu_rate/publish_rate is an integer!!
+    publishLandmarks: true             # select, if you want to publish landmarks at all
+    landmarkQualityThreshold: 1.0e-2   # landmark with lower quality will not be published
+    maximumLandmarkQuality: 0.05       # landmark with higher quality will be published with the maximum colour intensity
+    maxPathLength: 20                  # maximum length of the published path
+    publishImuPropagatedState: false    # Should the state that is propagated with IMU messages be published? Or just the optimized ones?
+    # provide custom World frame Wc
+    T_Wc_W:
+        [1.0000, 0.0000, 0.0000, 0.0000,
+         0.0000, 1.0000, 0.0000, 0.0000,
+         0.0000, 0.0000, 1.0000, 0.0000,
+         0.0000, 0.0000, 0.0000, 1.0000]
+    trackedBodyFrame: B                # B or S, the frame of reference that will be expressed relative to the selected worldFrame
+    velocitiesFrame: Wc                # Wc, B or S,  the frames in which the velocities of the selected trackedBodyFrame will be expressed in
+
+# gtsam smoother options
+backend_modality: 0 # 0 structureless factors, 1 projection factors.
+smartNoiseSigma: 1.5
+rankTolerance: 1.0
+landmarkDistanceThreshold: 20.0
+
+outlierRejection: 8.0
+retriangulationThreshold: 1.0e-3
+addBetweenStereoFactors: 1
+
+betweenRotationPrecision: 0.0
+betweenTranslationPrecision: 100
+
+relinearizeThreshold: 1.0e-2
+relinearizeSkip: 1.0
+
+numOptimize: 1
+wildfire_threshold: 0.001
+useDogLeg: 0
+
+initialLambda: 0.0    # same as GN
+lowerBoundLambda: 0.0 # same as GN
+upperBoundLambda: 0.0 # same as GN
+
+zeroVelocitySigma: 1.0e-3
+noMotionPositionSigma: 1.0e-3
+noMotionRotationSigma: 1.0e-4
+constantVelSigma: 1.0e-2

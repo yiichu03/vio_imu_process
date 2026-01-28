@@ -1,0 +1,31 @@
+- git:
+    local-name: catkin_simple
+    uri: https://github.com/catkin/catkin_simple.git
+- git:
+    local-name: schweizer_messer
+    uri: https://github.com/ethz-asl/schweizer_messer.git
+# - git:
+#     local-name: aslam_splines
+#     uri: git@bitbucket.org:JzHuai0108/aslam_splines.git
+#     version: 3e526750827a689953ac224b8df38851efe52083
+- git:
+    local-name: lie_splines
+    uri: git@bitbucket.org:JzHuai0108/lie_splines.git
+    version: master
+- git:
+    local-name: vio_common
+    uri: git@github.com:JzHuai0108/vio_common.git
+    version: master
+- git:
+    local-name: sophus
+    uri: git@github.com:JzHuai0108/Sophus.git
+    version: master
+- git:
+    local-name: okvis
+    uri: git@github.com:JzHuai0108/okvis.git
+    version: master
+- git:
+    local-name: csfm_msgs
+    uri: git@bitbucket.org:JzHuai0108/csfm_msgs.git
+    version: master
+

@@ -1,0 +1,13 @@
+# Turn the components of the linter individualy on / off.
+clangformat: off
+cpplint: on
+yapf: on
+pylint: on
+
+# If this whitelist block is present, the linter only operates on the files and
+# directories listed in this whitelist.
+whitelist:
+ - swift_vio/include
+ - swift_vio/okvis
+ - swift_vio/src
+ - swift_vio/test

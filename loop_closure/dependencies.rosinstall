@@ -1,0 +1,25 @@
+- git:
+    local-name: catkin_simple
+    uri: https://github.com/catkin/catkin_simple.git
+
+- git:
+    local-name: sophus
+    uri: git@github.com:JzHuai0108/Sophus.git
+    version: master
+- git:
+    local-name: kimera_rpgo
+    uri: git@github.com:JzHuai0108/Kimera-RPGO.git
+    version: master
+- git:
+    local-name: okvis
+    uri: git@github.com:JzHuai0108/okvis.git
+    version: master
+- git:
+    local-name: DBoW2
+    uri: https://github.com/dorian3d/DBoW2.git
+    version: master
+
+- git:
+    local-name: csfm_msgs
+    uri: git@bitbucket.org:JzHuai0108/csfm_msgs.git
+    version: master

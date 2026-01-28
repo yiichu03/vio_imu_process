@@ -1,0 +1,6 @@
+function res=skew(vec3)
+res=[0 		-vec3(3)    vec3(2); ...
+     vec3(3)	0	    -vec3(1);...
+     -vec3(2)	vec3(1)	    0];
+end
+

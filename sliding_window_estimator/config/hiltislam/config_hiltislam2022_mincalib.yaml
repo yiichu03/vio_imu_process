@@ -1,0 +1,220 @@
+%YAML:1.0
+# The numbering of hiltislam 2022 cameras are given by
+# 0: front left camera
+# 1: front right camera
+# 2: top camera
+# 3: side left camera
+# 4: side right camera
+
+cameras:
+     - {T_SC:
+        [ 0.006708021, 0.002425644, 0.999974559, 0.05126355 ,
+          0.99992642 , 0.010091197,-0.006732177, 0.045390122,
+         -0.01010727 , 0.999946141,-0.002357773,-0.013214913,
+          0.0        , 0.0        , 0.0        , 1.0        ],
+        image_dimension: [720, 540], 
+        distortion_coefficients: [-0.03696737352869157, -0.008917880497032812, 0.008912969593422046, -0.0037685977496087313],
+        distortion_type: equidistant, 
+        focal_length: [351.31400364193297, 351.4911744656785],
+        principal_point: [367.8522793375995, 253.8402144980996], 
+        projection_intrinsic_rep: FIXED,
+        extrinsic_rep: FIXED, 
+        image_delay: 0.0019071204237431304, image_readout_time: 0.00}
+
+     - {T_SC:
+        [ 0.001655613, 0.000935009, 0.999998192, 0.050392018,
+          0.999984064, 0.005395691,-0.001660634,-0.062783167,
+          -0.005397234, 0.999985006,-0.000926061,-0.013143268,
+          0.         , 0.         , 0.         , 1.         ],
+        image_dimension: [720, 540], 
+        distortion_coefficients: [-0.039086652082708805, -0.005525347047415151, 0.004398151558986798, -0.0019701263170917808],
+        distortion_type: equidistant, focal_length: [352.6489794433894, 352.8586498571586],
+        principal_point: [347.8170010310082, 270.5806692485468], projection_intrinsic_rep: FIXED,
+        extrinsic_rep: FIXED, image_delay: 0.001901867458041627, image_readout_time: 0.00}
+
+     - {T_SC:
+        [ 0.999989755, 0.004238471,-0.001588954, 0.006841138,
+          0.004234052,-0.999987188,-0.002774217,-0.007996774,
+          -0.001600692, 0.002767461,-0.999994889,-0.034113804,
+          0.         , 0.         , 0.         , 1.         ],
+        image_dimension: [720, 540], 
+        distortion_coefficients: [-0.041202246303621064, -0.0012607385825244833, 0.0006712169937177444, -0.0006234254968089226],
+        distortion_type: equidistant, focal_length: [350.70040966794545, 350.8792449525716],
+        principal_point: [375.2977403521422, 268.5927747079796], projection_intrinsic_rep: FIXED,
+        extrinsic_rep: FIXED, image_delay: 0.001939579925335353, image_readout_time: 0.00}
+
+     - {T_SC:
+        [ -0.999891689, 0.01270714 , 0.007425498,-0.002741699,
+          0.007396042,-0.002363531, 0.999969856, 0.057230165,
+          0.012724308, 0.999916468, 0.002269292,-0.011011484,
+          0.         , 0.         , 0.         , 1.         ],
+        image_dimension: [720, 540], 
+        distortion_coefficients: [-0.03890973498616883, -0.002604676547864069, 0.0004634700730293949, -0.00036698216675371063],
+        distortion_type: equidistant, focal_length: [352.9514843860555, 353.32837903547403],
+        principal_point: [363.93345228274336, 266.14511705007413], projection_intrinsic_rep: FIXED,
+        extrinsic_rep: FIXED, image_delay: 0.0018128742099424312, image_readout_time: 0.00}
+
+     - {T_SC:
+        [ 0.99998804 , 0.004797009,-0.000952925,-0.006567639,
+          -0.000942428,-0.00219009 ,-0.999997158,-0.074837542,
+          -0.004799082, 0.999986096,-0.002185543,-0.016833275,
+          0.         , 0.         , 0.         , 1.         ],
+        image_dimension: [720, 540], 
+        distortion_coefficients: [-0.03842764034005408, -0.005841411460411122, 0.003451041303088915, -0.0011463543672005018],
+        distortion_type: equidistant, focal_length: [351.5132148653381, 351.7557554938886],
+        principal_point: [342.8425988673232, 259.91793254535776], projection_intrinsic_rep: FIXED,
+        extrinsic_rep: FIXED, image_delay: 0.0017123033924705262, image_readout_time: 0.00}
+
+monocular_input: false
+
+camera_params:
+    camera_rate: 40 # just to manage the expectations of when there should be frames arriving
+    sigma_absolute_translation: 0.02 # The standard deviation of the camera extrinsics translation, e.g. 1.0e-10 for online-calib [m].
+    sigma_absolute_orientation: 0.01 # The standard deviation of the camera extrinsics orientation, e.g. 1.0e-3 for online-calib [rad].
+    sigma_c_relative_translation: 1.0e-6 # The std. dev. of the cam. extr. transl. change between frames, e.g. 1.0e-6 for adaptive online calib (not less for numerics) [m].
+    sigma_c_relative_orientation: 1.0e-6 # The std. dev. of the cam. extr. orient. change between frames, e.g. 1.0e-6 for adaptive online calib (not less for numerics) [rad].
+    timestamp_tolerance: 0.005 # [s] stereo frame out-of-sync tolerance
+    sigma_focal_length: 0.0
+    sigma_principal_point: 0.0
+    sigma_distortion: [0.0, 0.0, 0.0, 0.0]
+    sigma_td: 0.0
+    sigma_tr: 0.0
+
+imu_params:
+    a_max: 176.0 # acceleration saturation [m/s^2]
+    g_max: 7.8 # gyro saturation [rad/s]
+    sigma_g_c: 1.0e-3  # gyro noise density [rad/s/sqrt(Hz)]
+    sigma_a_c: 5.0e-3 # accelerometer noise density [m/s^2/sqrt(Hz)]
+    sigma_bg: 0.03 # gyro bias prior [rad/s]
+    sigma_ba: 0.1 # accelerometer bias prior [m/s^2]
+    sigma_gw_c: 5.5e-5 # gyro drift noise density [rad/s^s/sqrt(Hz)]
+    sigma_aw_c: 3.0e-3 # accelerometer drift noise density [m/s^2/sqrt(Hz)]
+    tau: 3600.0 # reversion time constant, currently not in use [s]
+    g: 9.81187 # Earth's acceleration due to gravity [m/s^2] at Sheldonial theatre.
+    # google map coordinates for sheldonian theatre 51.7541933,-1.2559306,139m
+    # Per https://www.daftlogic.com/sandbox-google-maps-find-altitude.htm the sheldonian theatre has an altitude of 72m.
+    # Per https://www.unavco.org/software/geodetic-utilities/geoid-height-calculator/geoid-height-calculator.html the sheldonian theatre has a geoid height 47.91m
+    # Per https://commons.wikimedia.org/wiki/File:Sheldonian_Theatre,_Oxford.jpg found by googling "sheldonian theatre GPS lat lon height coordinates",
+    # the Sheldonian theatre has an altitude, 87.1 meters above sea level.
+    # Based on the above, I assume 139 is the ellipsoid height. 
+    a0: [ 0.0, 0.0, 0.0 ] # Accelerometer bias [m/s^2]
+    imu_rate: 200
+    # tranform Body-Sensor (IMU)
+    T_BS:
+        [1.0000, 0.0000, 0.0000, 0.0000,
+         0.0000, 1.0000, 0.0000, 0.0000,
+         0.0000, 0.0000, 1.0000, 0.0000,
+         0.0000, 0.0000, 0.0000, 1.0000]
+    sigma_Mg_element: 0.0
+    sigma_Ts_element: 0.0
+    sigma_Ma_element: 0.0
+    model_name: BG_BA
+
+initial_state:
+    sigma_v_WS: [0.1, 0.1, 0.1]
+    sigma_q_WS: [0.2, 0.2, 0.05]
+    sigma_p_WS: [0.1, 0.1, 0.1]
+    delayFilterInitByFrames: 4
+    motionDisparityTol: 5.0
+
+# Estimator parameters
+optimization:
+    numKeyframes: 5 # number of keyframes in optimisation window
+    numImuFrames: 5 # number of frames linked by most recent nonlinear IMU error terms
+    minMarginalizedFrames: 2 # min number of marginalization frames in each marginalization step aplies to filters.
+    numKeyframesForInit: 3
+    algorithm: "SlidingWindowFilter"
+    initializer: "ImuInitializer"
+    useEpipolarConstraint: false
+    cameraObservationModelId: 0
+    computeOkvisNees: 0
+    useMahalanobisGating: 1
+    maxProjectionErrorTol: 7
+
+frontend:
+    useMedianFilter: false
+    histogramMethod: histogram
+    stereoMatchWithEpipolarCheck: true
+    numKeyframesToMatch: 2
+    numOldKeyframesToMatch: 0
+    epipolarDistanceThreshold: 2.5
+    featureTrackingMethod: 0
+    numThreads: 4
+    allAreKeyframes: false
+
+point_landmark:
+    landmarkModelId: 1
+    minTrackLength: 3
+    minTrackLengthForSlam: 7
+    maxHibernationFrames: 3
+    maxInStateLandmarks: 50
+    maxMarginalizedLandmarks: 50
+    triangulationMaxDepth: 1000.0
+
+pose_graph:
+    maxOdometryConstraintForAKeyframe: 2
+
+# ceres optimization options
+ceres_options:
+    minIterations: 3   # minimum number of iterations always performed
+    maxIterations: 10  # never do more than these, even if not converged
+    timeLimit: 0.035   # [s] negative values will set the an unlimited time limit
+
+# detection
+detection_options:
+    threshold: 40.0      # detection threshold. By default the uniformity radius in pixels
+    octaves: 0           # number of octaves for detection. 0 means single-scale at highest resolution
+    maxNoKeypoints: 400  # restrict to a maximum of this many keypoints per image (strongest ones)
+
+viz_options:
+    # display debug images?
+    displayImages: true  # displays debug video and keyframe matches. May be slow.
+
+# use direct driver
+useDriver: false
+
+# some options for how and what to publish -- optional in ROS-free version
+publishing_options:
+    publish_rate: 100                  # rate at which odometry updates are published only works properly if imu_rate/publish_rate is an integer!!
+    publishLandmarks: true             # select, if you want to publish landmarks at all
+    landmarkQualityThreshold: 1.0e-2   # landmark with lower quality will not be published
+    maximumLandmarkQuality: 0.05       # landmark with higher quality will be published with the maximum colour intensity
+    maxPathLength: 20                  # maximum length of the published path
+    publishImuPropagatedState: false    # Should the state that is propagated with IMU messages be published? Or just the optimized ones?
+    # provide custom World frame Wc
+    T_Wc_W:
+        [1.0000, 0.0000, 0.0000, 0.0000,
+         0.0000, 1.0000, 0.0000, 0.0000,
+         0.0000, 0.0000, 1.0000, 0.0000,
+         0.0000, 0.0000, 0.0000, 1.0000]
+    trackedBodyFrame: B                # B or S, the frame of reference that will be expressed relative to the selected worldFrame
+    velocitiesFrame: Wc                # Wc, B or S,  the frames in which the velocities of the selected trackedBodyFrame will be expressed in
+
+# gtsam smoother options
+backend_modality: 0 # 0 structureless factors, 1 projection factors.
+smartNoiseSigma: 1.5
+rankTolerance: 1.0
+landmarkDistanceThreshold: 20.0
+
+outlierRejection: 8.0
+retriangulationThreshold: 1.0e-3
+addBetweenStereoFactors: 1
+
+betweenRotationPrecision: 0.0
+betweenTranslationPrecision: 100
+
+relinearizeThreshold: 1.0e-2
+relinearizeSkip: 1.0
+
+numOptimize: 1
+wildfire_threshold: 0.001
+useDogLeg: 0
+
+initialLambda: 0.0    # same as GN
+lowerBoundLambda: 0.0 # same as GN
+upperBoundLambda: 0.0 # same as GN
+
+zeroVelocitySigma: 1.0e-3
+noMotionPositionSigma: 1.0e-3
+noMotionRotationSigma: 1.0e-4
+constantVelSigma: 1.0e-2
