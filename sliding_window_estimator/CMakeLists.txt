@@ -302,6 +302,9 @@ target_link_libraries(preint_from_openvins_pack ${PROJECT_NAME})
 add_executable(gtsam_oracle_preint_from_txt src/apps/gtsam_oracle_preint_from_txt.cpp)
 target_link_libraries(gtsam_oracle_preint_from_txt ${PROJECT_NAME})
 
+add_executable(compare_preint_outputs src/apps/compare_preint_outputs.cpp)
+target_link_libraries(compare_preint_outputs ${PROJECT_NAME})
+
 add_executable(imu_file_smoketest src/apps/imu_file_smoketest.cpp)
 target_link_libraries(imu_file_smoketest ${PROJECT_NAME} gflags)
 

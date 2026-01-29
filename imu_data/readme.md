@@ -13,11 +13,19 @@ source /ws/devel/setup.bash
 
 cd /ws
 catkin clean sliding_window_estimator -y
-catkin build sliding_window_estimator
+catkin build slidinsg_window_estimator
 source /ws/devel/setup.bash
 
 rosrun sliding_window_estimator preint_from_openvins_pack \
   /ws/src/swift_vio/imu_data/imu_prop_pack.yaml \
   /ws/src/swift_vio/imu_data
+
+rosrun sliding_window_estimator gtsam_oracle_preint_from_txt \
+  /ws/src/swift_vio/imu_data/imu_data_Tangent_0.txt \
+  /ws/src/swift_vio/imu_data/cpc_config_Tangent_0.yaml \
+  /ws/src/swift_vio/imu_data/oracle_gtsam_out
+# 可选加： --ts <sec> --te <sec>
+
+
 
 
