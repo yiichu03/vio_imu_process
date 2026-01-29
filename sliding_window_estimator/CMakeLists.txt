@@ -296,6 +296,9 @@ target_link_libraries(vi_bundle_adjustment ${PROJECT_NAME})
 add_executable(propag_by_preint src/apps/propag_by_preint.cpp)
 target_link_libraries(propag_by_preint ${PROJECT_NAME} GTest::gtest)
 
+add_executable(preint_from_openvins_pack src/apps/preint_from_openvins_pack.cpp)
+target_link_libraries(preint_from_openvins_pack ${PROJECT_NAME})
+
 add_executable(imu_file_smoketest src/apps/imu_file_smoketest.cpp)
 target_link_libraries(imu_file_smoketest ${PROJECT_NAME} gflags)
 
