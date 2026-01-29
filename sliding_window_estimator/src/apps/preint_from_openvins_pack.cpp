@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <cctype>
 #include <cmath>
+#include <filesystem>
 #include <fstream>
 #include <iomanip>
 #include <iostream>
@@ -310,22 +311,20 @@ static OvPack load_pack(const std::string &path) {
 }
 
 template <typename Derived>
-static void saveMatrixTxt(const std::string &path, const Eigen::MatrixBase<Derived> &mat) {
-  std::ofstream ofs(path, std::ios::trunc);
-  if (!ofs.is_open()) {
-    throw std::runtime_error("failed to open for writing: " + path);
-  }
-  ofs.setf(std::ios::fixed);
-  ofs << std::setprecision(18);
+static void appendMatrixBlock(std::ostream &os, const std::string &name, const Eigen::MatrixBase<Derived> &mat) {
+  os << name << " (" << mat.rows() << "x" << mat.cols() << ")\n";
+  os.setf(std::ios::fixed);
+  os << std::setprecision(18);
   for (int r = 0; r < mat.rows(); ++r) {
     for (int c = 0; c < mat.cols(); ++c) {
-      ofs << mat(r, c);
+      os << mat(r, c);
       if (c < mat.cols() - 1) {
-        ofs << ' ';
+        os << ' ';
       }
     }
-    ofs << '\n';
+    os << '\n';
   }
+  os << '\n';
 }
 
 static Eigen::Matrix<double, 15, 15> build_perm_OV_to_OKVIS() {
@@ -358,6 +357,7 @@ int main(int argc, char **argv) {
     }
     const std::string pack_path = argv[1];
     const std::string out_dir = (argc >= 3) ? std::string(argv[2]) : std::string(".");
+    std::filesystem::create_directories(out_dir);
 
     const OvPack pack = load_pack(pack_path);
 
@@ -401,18 +401,27 @@ int main(int argc, char **argv) {
     const Eigen::Matrix<double, 9, 6> JincBias_ba_bg_rk4 = swapBias(JincBias_bg_ba_rk4);
 
     // 6) Save matrices to txt files (space-separated, same as saveMatrix in propag_by_preint.cpp).
-    saveMatrixTxt(out_dir + "/covRK4_from_openvins_pack.txt", covRK4);
-    saveMatrixTxt(out_dir + "/jacRK4_from_openvins_pack.txt", jacRK4);
-    saveMatrixTxt(out_dir + "/Sigma_z_from_openvins_pack.txt", Sigma_z);
-    saveMatrixTxt(out_dir + "/JincBias_bg_ba_rk4.txt", JincBias_bg_ba_rk4);
-    saveMatrixTxt(out_dir + "/JincBias_ba_bg_rk4.txt", JincBias_ba_bg_rk4);
+    // Write a single combined txt for easier reading.
+    {
+      const std::string all_path = out_dir + "/preint_from_openvins_pack_all.txt";
+      std::ofstream ofs(all_path, std::ios::trunc);
+      if (!ofs.is_open()) {
+        throw std::runtime_error("failed to open for writing: " + all_path);
+      }
+      ofs << "# preint_from_openvins_pack\n";
+      ofs << "# pack_yaml: " << pack_path << "\n";
+      ofs << std::setprecision(17) << "# dt: " << pack.dt << "\n";
+      ofs << std::setprecision(6) << "# recon_errors: |p|=" << p_err << " |v|=" << v_err << " angle_rad=" << R_err << "\n\n";
+
+      appendMatrixBlock(ofs, "covRK4_from_openvins_pack", covRK4);
+      appendMatrixBlock(ofs, "jacRK4_from_openvins_pack", jacRK4);
+      appendMatrixBlock(ofs, "Sigma_z_from_openvins_pack", Sigma_z);
+      appendMatrixBlock(ofs, "JincBias_bg_ba_rk4", JincBias_bg_ba_rk4);
+      appendMatrixBlock(ofs, "JincBias_ba_bg_rk4", JincBias_ba_bg_rk4);
+    }
 
     std::cout << "wrote:\n"
-              << "  " << out_dir << "/covRK4_from_openvins_pack.txt\n"
-              << "  " << out_dir << "/jacRK4_from_openvins_pack.txt\n"
-              << "  " << out_dir << "/Sigma_z_from_openvins_pack.txt\n"
-              << "  " << out_dir << "/JincBias_bg_ba_rk4.txt\n"
-              << "  " << out_dir << "/JincBias_ba_bg_rk4.txt\n";
+              << "  " << out_dir << "/preint_from_openvins_pack_all.txt\n";
     return EXIT_SUCCESS;
 
   } catch (const std::exception &e) {
