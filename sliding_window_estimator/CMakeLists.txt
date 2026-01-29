@@ -296,6 +296,9 @@ target_link_libraries(vi_bundle_adjustment ${PROJECT_NAME})
 add_executable(propag_by_preint src/apps/propag_by_preint.cpp)
 target_link_libraries(propag_by_preint ${PROJECT_NAME} GTest::gtest)
 
+add_executable(imu_file_smoketest src/apps/imu_file_smoketest.cpp)
+target_link_libraries(imu_file_smoketest ${PROJECT_NAME} gflags)
+
 find_package(Boost COMPONENTS filesystem system thread REQUIRED)
 add_executable(average_transformations src/apps/average_transformations.cpp)
 target_link_libraries(average_transformations  ${Boost_FILESYSTEM_LIBRARY} ${Boost_SYSTEM_LIBRARY})
