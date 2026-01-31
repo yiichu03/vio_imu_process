@@ -625,7 +625,7 @@ static int PreintegrationByPropagationImpl(bool use_manifold) {
     JincBias_ba_bg_gtsam << pim.preintegrated_H_biasAcc(), pim.preintegrated_H_biasOmega();
   }
 
-  // 取出 GTSAM 的预积分协方差，并与反推的对比
+  // 取出 GTSAM 的预积分协方差，并与反推的对比 1. ba_bg_gtsam    2. Sigma_z_gtsam 2%
   Eigen::Matrix<double,15,15> Sigma_z_gtsam = pim.preintMeasCov();
 
   // 打印两个 9×6 bias Jacobian：一个来自 RK4 反推（已经换成 [ba,bg]）；一个来自 GTSAM 输出
@@ -638,7 +638,7 @@ static int PreintegrationByPropagationImpl(bool use_manifold) {
   std::cout << "Comparing preintegration covariance" << std::endl;
   std::cout << "Sigma_z_rk4:\n" << Sigma_z_rk4 << std::endl;
   std::cout << "Sigma_z_gtsam:\n" << Sigma_z_gtsam << std::endl;
-  expectNearAbsRel(Sigma_z_rk4, Sigma_z_gtsam, 1e-4, 1e-2);
+  expectNearAbsRel(Sigma_z_rk4, Sigma_z_gtsam, 1e-4, 1e-2); // compare
 
   return 0;
 }
