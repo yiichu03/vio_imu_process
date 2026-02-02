@@ -295,7 +295,7 @@ int main(int argc, char **argv) {
         gtsam_all = next();
       } else if (a == "--help" || a == "-h") {
         std::cout << "usage: " << argv[0] << " --ov_pack_yaml <imu_prop_pack.yaml> --ov_all <preint_from_openvins_pack_all.txt>"
-                  << " --gtsam_all <gtsam_oracle_preint_all.txt>\n";
+                  << " --gtsam_all <gtsam_ref_preint_all.txt>\n";
         return EXIT_SUCCESS;
       } else {
         throw std::runtime_error("unknown argument: " + a);
@@ -304,7 +304,7 @@ int main(int argc, char **argv) {
 
     if (ov_pack_yaml.empty() || ov_all.empty() || gtsam_all.empty()) {
       std::cerr << "usage: " << argv[0] << " --ov_pack_yaml <imu_prop_pack.yaml> --ov_all <preint_from_openvins_pack_all.txt>"
-                << " --gtsam_all <gtsam_oracle_preint_all.txt>\n";
+                << " --gtsam_all <gtsam_ref_preint_all.txt>\n";
       return EXIT_FAILURE;
     }
 

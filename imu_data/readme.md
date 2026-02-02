@@ -1,4 +1,5 @@
-我已经在老师工程里加了这个新可执行。
+文件夹有🔓时候 sudo chown -R $USER:$USER /路径/到/文件夹
+
 
 新增源码：preint_from_openvins_pack.cpp (line 1)
 
@@ -20,11 +21,10 @@ rosrun sliding_window_estimator preint_from_openvins_pack \
   /ws/src/swift_vio/imu_data/imu_prop_pack.yaml \
   /ws/src/swift_vio/imu_data
 
-rosrun sliding_window_estimator gtsam_oracle_preint_from_txt \
+rosrun sliding_window_estimator gtsam_ref_preint_from_txt \
   /ws/src/swift_vio/imu_data/imu_data_Tangent_0.txt \
   /ws/src/swift_vio/imu_data/cpc_config_Tangent_0.yaml \
-  /ws/src/swift_vio/imu_data/oracle_gtsam_out
-# 可选加： --ts <sec> --te <sec>
+  /ws/src/swift_vio/imu_data/gtsam_ref_out
 
 
 
@@ -41,5 +41,4 @@ rosrun sliding_window_estimator preint_from_openvins_pack \
 rosrun sliding_window_estimator compare_preint_outputs \
   --ov_pack_yaml /ws/src/swift_vio/imu_data/imu_prop_pack.yaml \
   --ov_all /ws/src/swift_vio/imu_data/preint_from_openvins_pack_all.txt \
-  --gtsam_all /ws/src/swift_vio/imu_data/oracle_gtsam_out/gtsam_oracle_preint_all.txt
-
+  --gtsam_all /ws/src/swift_vio/imu_data/gtsam_ref_out/gtsam_ref_preint_all.txt

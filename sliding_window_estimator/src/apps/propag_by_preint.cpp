@@ -614,10 +614,10 @@ static int PreintegrationByPropagationImpl(bool use_manifold) {
         pim.delPdelBiasOmega(),
         pim.delVdelBiasAcc(),
         pim.delVdelBiasOmega());
-  } else {
+  } else { // tangent
     JincBias_ba_bg_gtsam << pim.preintegrated_H_biasAcc(), pim.preintegrated_H_biasOmega();
   }
-
+  // JincBias_ba_bg_gtsam, Sigma_z_gtsam
   Eigen::Matrix<double,15,15> Sigma_z_gtsam = pim.preintMeasCov();
 
   std::cout << "Comparing bias jacobians" << std::endl;

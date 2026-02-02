@@ -1,4 +1,4 @@
-# gtsam_oracle_preint_from_txt
+# gtsam_ref_preint_from_txt
 # imu_txt: /ws/src/swift_vio/imu_data/imu_data_Tangent_0.txt
 # config_yaml: /ws/src/swift_vio/imu_data/cpc_config_Tangent_0.yaml
 # interval: ts=0 te=9.9949999999999992 dt=9.9949999999999992

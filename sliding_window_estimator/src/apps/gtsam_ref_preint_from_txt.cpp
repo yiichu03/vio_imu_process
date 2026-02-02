@@ -33,6 +33,16 @@ struct Config {
   Eigen::Vector3d bias_accel = Eigen::Vector3d::Zero();
 };
 
+struct GtsamPreintOut {
+  Eigen::Matrix3d dR = Eigen::Matrix3d::Identity();
+  Eigen::Vector3d dP = Eigen::Vector3d::Zero();
+  Eigen::Vector3d dV = Eigen::Vector3d::Zero();
+  double DT = 0.0;
+  // propag_by_preint.cpp 621 609
+  Eigen::Matrix<double, 15, 15> Sigma_z = Eigen::Matrix<double, 15, 15>::Zero();
+  Eigen::Matrix<double, 9, 6> JincBias_ba_bg = Eigen::Matrix<double, 9, 6>::Zero();
+};
+
 static inline std::string trim(const std::string &s) {
   size_t b = 0;
   while (b < s.size() && std::isspace(static_cast<unsigned char>(s[b])))
@@ -224,83 +234,6 @@ static std::vector<ImuRow> read_imu_txt(const std::string &path) {
   return rows;
 }
 
-static ImuRow lerp_row(const ImuRow &r0, const ImuRow &r1, double t) {
-  const double dt = (r1.t - r0.t);
-  if (!(dt > 0.0)) {
-    throw std::runtime_error("cannot interpolate with non-positive dt");
-  }
-  const double lambda = (t - r0.t) / dt;
-  ImuRow out;
-  out.t = t;
-  out.w = (1.0 - lambda) * r0.w + lambda * r1.w;
-  out.a = (1.0 - lambda) * r0.a + lambda * r1.a;
-  return out;
-}
-
-static std::vector<ImuRow> select_imu_interval(const std::vector<ImuRow> &rows, double ts, double te) {
-  if (!(te > ts)) {
-    throw std::runtime_error("invalid interval: te must be > ts");
-  }
-  if (ts < rows.front().t || te > rows.back().t) {
-    std::stringstream ss;
-    ss << "requested [ts,te] not within imu range [" << rows.front().t << "," << rows.back().t << "]";
-    throw std::runtime_error(ss.str());
-  }
-
-  // Find segment for ts
-  size_t i0 = 0;
-  while (i0 + 1 < rows.size() && !(rows[i0].t <= ts && ts <= rows[i0 + 1].t))
-    i0++;
-  if (i0 + 1 >= rows.size())
-    throw std::runtime_error("failed to bracket ts");
-
-  // Find segment for te
-  size_t i1 = i0;
-  while (i1 + 1 < rows.size() && !(rows[i1].t <= te && te <= rows[i1 + 1].t))
-    i1++;
-  if (i1 + 1 >= rows.size())
-    throw std::runtime_error("failed to bracket te");
-
-  std::vector<ImuRow> out;
-  out.reserve((i1 - i0 + 3));
-
-  // Push interpolated ts
-  if (ts == rows[i0].t) {
-    out.push_back(rows[i0]);
-  } else {
-    out.push_back(lerp_row(rows[i0], rows[i0 + 1], ts));
-  }
-
-  // Push interior original samples (strictly between ts and te)
-  for (size_t k = i0 + 1; k <= i1; k++) {
-    if (rows[k].t > ts && rows[k].t < te) {
-      out.push_back(rows[k]);
-    }
-  }
-
-  // Push interpolated te
-  if (te == rows[i1 + 1].t) {
-    out.push_back(rows[i1 + 1]);
-  } else if (te == rows[i1].t) {
-    out.push_back(rows[i1]);
-  } else {
-    out.push_back(lerp_row(rows[i1], rows[i1 + 1], te));
-  }
-
-  // Ensure strictly increasing
-  std::sort(out.begin(), out.end(), [](const ImuRow &a, const ImuRow &b) { return a.t < b.t; });
-  out.erase(std::unique(out.begin(), out.end(), [](const ImuRow &a, const ImuRow &b) { return a.t == b.t; }), out.end());
-  if (out.size() < 2) {
-    throw std::runtime_error("not enough imu samples after cutting");
-  }
-  for (size_t k = 0; k + 1 < out.size(); k++) {
-    if (!(out[k + 1].t > out[k].t)) {
-      throw std::runtime_error("non-increasing imu timestamps after cutting");
-    }
-  }
-  return out;
-}
-
 template <typename Derived>
 static void appendMatrixBlock(std::ostream &os, const std::string &name, const Eigen::MatrixBase<Derived> &mat) {
   os << name << " (" << mat.rows() << "x" << mat.cols() << ")\n";
@@ -326,12 +259,60 @@ static std::string join_path(const std::string &dir, const std::string &name) {
   return dir + "/" + name;
 }
 
+static GtsamPreintOut run_gtsam_tangent_preintegration(const std::vector<ImuRow> &rows, const Config &cfg) {
+  if (rows.size() < 2) {
+    throw std::runtime_error("need >= 2 imu samples to preintegrate");
+  }
+  // propag_by_preint.cpp 521
+  const gtsam::Vector3 n_gravity(cfg.gravity.x(), cfg.gravity.y(), cfg.gravity.z());
+  auto params = std::make_shared<gtsam::PreintegratedCombinedMeasurements::Params>(n_gravity);
+  params->gyroscopeCovariance = (cfg.sigma_g_c * cfg.sigma_g_c) * Eigen::Matrix3d::Identity();
+  params->accelerometerCovariance = (cfg.sigma_a_c * cfg.sigma_a_c) * Eigen::Matrix3d::Identity();
+  params->integrationCovariance = 1e-16 * Eigen::Matrix3d::Identity();
+  params->biasOmegaCovariance = (cfg.sigma_gw_c * cfg.sigma_gw_c) * gtsam::I_3x3;
+  params->biasAccCovariance = (cfg.sigma_aw_c * cfg.sigma_aw_c) * gtsam::I_3x3;
+  params->use2ndOrderCoriolis = false;
+  params->biasAccOmegaInt.setZero();
+
+  // NOTE: ConstantBias takes (accelBias, gyroBias).
+  const gtsam::imuBias::ConstantBias bias_gtsam(cfg.bias_accel, cfg.bias_gyro);
+  // propag_by_preint.cpp 642
+  gtsam::PreintegratedCombinedMeasurementsT<gtsam::TangentPreintegration> pim(params, bias_gtsam);
+
+  for (size_t k = 0; k + 1 < rows.size(); k++) {
+    const ImuRow &r0 = rows[k];
+    const ImuRow &r1 = rows[k + 1];
+    const double dt = r1.t - r0.t;
+    if (!(dt > 0.0))
+      continue;
+    const Eigen::Vector3d omega = 0.5 * (r0.w + r1.w);
+    const Eigen::Vector3d acc = 0.5 * (r0.a + r1.a);
+    pim.integrateMeasurement(acc, omega, dt);
+  }
+
+  GtsamPreintOut out;
+  out.dR = pim.deltaRij().matrix();
+  out.dP = pim.deltaPij();
+  out.dV = pim.deltaVij();
+  out.DT = pim.deltaTij();
+  // propag_by_preint.cpp 621
+  out.Sigma_z = pim.preintMeasCov();
+
+  const Eigen::Matrix<double, 9, 3> H_bg = pim.preintegrated_H_biasOmega();
+  const Eigen::Matrix<double, 9, 3> H_ba = pim.preintegrated_H_biasAcc();
+  out.JincBias_ba_bg.setZero();
+  // propag_by_preint.cpp 618
+  out.JincBias_ba_bg.block<9, 3>(0, 0) = H_ba;
+  out.JincBias_ba_bg.block<9, 3>(0, 3) = H_bg;
+  return out;
+}
+
 } // namespace
 
 int main(int argc, char **argv) {
   try {
-    if (argc < 4) {
-      std::cerr << "usage: " << argv[0] << " <imu_txt> <config_yaml> <out_dir> [--ts <sec>] [--te <sec>]\n";
+    if (argc != 4) {
+      std::cerr << "usage: " << argv[0] << " <imu_txt> <config_yaml> <out_dir>\n";
       return EXIT_FAILURE;
     }
 
@@ -340,99 +321,40 @@ int main(int argc, char **argv) {
     const std::string out_dir = argv[3];
     std::filesystem::create_directories(out_dir);
 
-    bool has_ts = false, has_te = false;
-    double ts = 0.0, te = 0.0;
-    for (int i = 4; i < argc; i++) {
-      const std::string a = argv[i];
-      auto next = [&]() -> std::string {
-        if (i + 1 >= argc)
-          throw std::runtime_error("missing value after " + a);
-        return std::string(argv[++i]);
-      };
-      if (a == "--ts") {
-        has_ts = true;
-        ts = std::stod(next());
-      } else if (a == "--te") {
-        has_te = true;
-        te = std::stod(next());
-      } else {
-        throw std::runtime_error("unknown argument: " + a);
-      }
-    }
-
     const Config cfg = load_config_yaml(config_yaml);
-    const std::vector<ImuRow> rows_all = read_imu_txt(imu_txt);
-
-    const double ts_use = has_ts ? ts : rows_all.front().t;
-    const double te_use = has_te ? te : rows_all.back().t;
-    const std::vector<ImuRow> rows = select_imu_interval(rows_all, ts_use, te_use);
-
-    const gtsam::Vector3 n_gravity(cfg.gravity.x(), cfg.gravity.y(), cfg.gravity.z());
-    auto params = std::make_shared<gtsam::PreintegratedCombinedMeasurements::Params>(n_gravity);
-    params->gyroscopeCovariance = (cfg.sigma_g_c * cfg.sigma_g_c) * Eigen::Matrix3d::Identity();
-    params->accelerometerCovariance = (cfg.sigma_a_c * cfg.sigma_a_c) * Eigen::Matrix3d::Identity();
-    params->integrationCovariance = 1e-16 * Eigen::Matrix3d::Identity();
-    params->biasOmegaCovariance = (cfg.sigma_gw_c * cfg.sigma_gw_c) * gtsam::I_3x3;
-    params->biasAccCovariance = (cfg.sigma_aw_c * cfg.sigma_aw_c) * gtsam::I_3x3;
-    params->use2ndOrderCoriolis = false;
-    params->biasAccOmegaInt.setZero();
-
-    const gtsam::imuBias::ConstantBias bias_gtsam(cfg.bias_accel, cfg.bias_gyro);
-
-    gtsam::PreintegratedCombinedMeasurementsT<gtsam::TangentPreintegration> pim(params, bias_gtsam);
-
-    for (size_t k = 0; k + 1 < rows.size(); k++) {
-      const ImuRow &r0 = rows[k];
-      const ImuRow &r1 = rows[k + 1];
-      const double dt = r1.t - r0.t;
-      if (!(dt > 0.0))
-        continue;
-      const Eigen::Vector3d omega = 0.5 * (r0.w + r1.w);
-      const Eigen::Vector3d acc = 0.5 * (r0.a + r1.a);
-      pim.integrateMeasurement(acc, omega, dt);
-    }
-
-    const Eigen::Matrix3d dR = pim.deltaRij().matrix();
-    const Eigen::Vector3d dP = pim.deltaPij();
-    const Eigen::Vector3d dV = pim.deltaVij();
-    const double DT = pim.deltaTij();
-    const Eigen::Matrix<double, 15, 15> Sigma_z = pim.preintMeasCov();
-    const Eigen::Matrix<double, 9, 3> H_bg = pim.preintegrated_H_biasOmega();
-    const Eigen::Matrix<double, 9, 3> H_ba = pim.preintegrated_H_biasAcc();
-    Eigen::Matrix<double, 9, 6> JincBias_ba_bg = Eigen::Matrix<double, 9, 6>::Zero();
-    JincBias_ba_bg.block<9, 3>(0, 0) = H_ba;
-    JincBias_ba_bg.block<9, 3>(0, 3) = H_bg;
+    const std::vector<ImuRow> rows = read_imu_txt(imu_txt);
+    const GtsamPreintOut out = run_gtsam_tangent_preintegration(rows, cfg);
 
     // Write a single combined txt.
     {
-      const std::string all_path = join_path(out_dir, "gtsam_oracle_preint_all.txt");
+      const std::string all_path = join_path(out_dir, "gtsam_ref_preint_all.txt");
       std::ofstream ofs(all_path, std::ios::trunc);
       if (!ofs.is_open()) {
         throw std::runtime_error("failed to open for writing: " + all_path);
       }
-      ofs << "# gtsam_oracle_preint_from_txt\n";
+      ofs << "# gtsam_ref_preint_from_txt\n";
       ofs << "# imu_txt: " << imu_txt << "\n";
       ofs << "# config_yaml: " << config_yaml << "\n";
-      ofs << std::setprecision(17) << "# interval: ts=" << rows.front().t << " te=" << rows.back().t << " dt=" << DT << "\n\n";
+      ofs << std::setprecision(17) << "# interval: ts=" << rows.front().t << " te=" << rows.back().t << " dt=" << out.DT << "\n\n";
 
-      appendMatrixBlock(ofs, "dR_gtsam", dR);
-      appendMatrixBlock(ofs, "dP_gtsam", dP);
-      appendMatrixBlock(ofs, "dV_gtsam", dV);
+      appendMatrixBlock(ofs, "dR_gtsam", out.dR);
+      appendMatrixBlock(ofs, "dP_gtsam", out.dP);
+      appendMatrixBlock(ofs, "dV_gtsam", out.dV);
       Eigen::Matrix<double, 1, 1> DT_mat;
-      DT_mat(0, 0) = DT;
+      DT_mat(0, 0) = out.DT;
       appendMatrixBlock(ofs, "DT_gtsam", DT_mat);
-      appendMatrixBlock(ofs, "Sigma_z_gtsam", Sigma_z);
-      appendMatrixBlock(ofs, "JincBias_ba_bg_gtsam", JincBias_ba_bg);
+      appendMatrixBlock(ofs, "Sigma_z_gtsam", out.Sigma_z);
+      appendMatrixBlock(ofs, "JincBias_ba_bg_gtsam", out.JincBias_ba_bg);
     }
 
-    std::cout << std::setprecision(17) << "integrated interval: ts=" << rows.front().t << " te=" << rows.back().t << " DT=" << DT
+    std::cout << std::setprecision(17) << "integrated interval: ts=" << rows.front().t << " te=" << rows.back().t << " DT=" << out.DT
               << "\n";
     std::cout << "wrote:\n"
-              << "  " << join_path(out_dir, "gtsam_oracle_preint_all.txt") << "\n";
+              << "  " << join_path(out_dir, "gtsam_ref_preint_all.txt") << "\n";
     return EXIT_SUCCESS;
 
   } catch (const std::exception &e) {
-    std::cerr << "gtsam_oracle_preint_from_txt failed: " << e.what() << "\n";
+    std::cerr << "gtsam_ref_preint_from_txt failed: " << e.what() << "\n";
     return EXIT_FAILURE;
   }
 }
