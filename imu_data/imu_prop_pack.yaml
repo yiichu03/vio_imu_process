@@ -83,9 +83,3 @@ calibration_flags_enforced_v1:
   do_calib_camera_timeoffset: false
   do_calib_imu_intrinsics: false
   do_calib_imu_g_sensitivity: false
-ab_check_bias:
-  enabled: true
-  bias_from_config: {gyro: [0.10000000000000001, 0.10000000000000001, 0.10000000000000001], accel: [0.10000000000000001, 0.10000000000000001, 0.10000000000000001]}
-  xe_diff: {dp_norm: 0, dp_rel: 0, dv_norm: 0, dv_rel: 0, quat_angle_rad: 9.8130778667735948e-18}
-  Phi_diff: {max_abs: 0, rel: 0}
-  Sigma_diff: {max_abs: 0, rel: 0}

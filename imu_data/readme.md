@@ -28,4 +28,18 @@ rosrun sliding_window_estimator gtsam_oracle_preint_from_txt \
 
 
 
+cd /ws
+catkin build sliding_window_estimator
+source /ws/devel/setup.bash
+
+# 重新生成 ov_all
+rosrun sliding_window_estimator preint_from_openvins_pack \
+  /ws/src/swift_vio/imu_data/imu_prop_pack.yaml \
+  /ws/src/swift_vio/imu_data
+
+# 再对比
+rosrun sliding_window_estimator compare_preint_outputs \
+  --ov_pack_yaml /ws/src/swift_vio/imu_data/imu_prop_pack.yaml \
+  --ov_all /ws/src/swift_vio/imu_data/preint_from_openvins_pack_all.txt \
+  --gtsam_all /ws/src/swift_vio/imu_data/oracle_gtsam_out/gtsam_oracle_preint_all.txt
 
