@@ -255,9 +255,14 @@ static Eigen::Matrix3d quat_xyzw_to_R(const std::vector<double> &q, const std::s
   if (q.size() != 4) {
     throw std::runtime_error("expected 4 elements for " + what);
   }
-  Eigen::Quaterniond qq(q[3], q[0], q[1], q[2]); // Eigen is w,x,y,z
-  qq.normalize();
-  return qq.toRotationMatrix();
+  // OpenVINS stores JPL quaternion (x,y,z,w). Its corresponding rotation matrix is the transpose
+  // of the Hamilton convention used by Eigen::Quaterniond for the same coefficients.
+  Eigen::Vector4d qjpl(q[0], q[1], q[2], q[3]);
+  qjpl.normalize();
+  const Eigen::Vector3d qv = qjpl.head<3>();
+  const double qw = qjpl(3);
+  const Eigen::Matrix3d I = Eigen::Matrix3d::Identity();
+  return (2.0 * qw * qw - 1.0) * I - 2.0 * qw * crossMx(qv) + 2.0 * qv * qv.transpose();
 }
 
 static OvPack load_pack(const std::string &path) {
@@ -327,19 +332,6 @@ static void appendMatrixBlock(std::ostream &os, const std::string &name, const E
   os << '\n';
 }
 
-static Eigen::Matrix<double, 15, 15> build_perm_OV_to_OKVIS() {
-  // OV:    [dtheta, dp, dv, dbg, dba]
-  // OKVIS: [dp, dtheta, dv, dbg, dba]
-  Eigen::Matrix<double, 15, 15> P = Eigen::Matrix<double, 15, 15>::Zero();
-  const Eigen::Matrix3d I = Eigen::Matrix3d::Identity();
-  P.block<3, 3>(0, 3) = I;   // dp <- dp
-  P.block<3, 3>(3, 0) = I;   // dtheta <- dtheta
-  P.block<3, 3>(6, 6) = I;   // dv <- dv
-  P.block<3, 3>(9, 9) = I;   // dbg <- dbg
-  P.block<3, 3>(12, 12) = I; // dba <- dba
-  return P;
-}
-
 static double rot_angle_rad(const Eigen::Matrix3d &R) {
   // robust enough for small angles
   const double tr = std::max(-1.0, std::min(3.0, R.trace()));
@@ -348,6 +340,33 @@ static double rot_angle_rad(const Eigen::Matrix3d &R) {
 }
 
 } // namespace
+
+static Eigen::Matrix<double, 15, 15> build_T_ov_to_okvis(const Eigen::Matrix3d &Rws) {
+  // OV error state:    [dtheta_body, dp_world, dv_world, dbg_body, dba_body]
+  // OKVIS error state: [dp_world, dtheta_world, dv_world, dbg_body, dba_body]
+  // with dtheta_world = Rws * dtheta_body.
+  Eigen::Matrix<double, 15, 15> T = Eigen::Matrix<double, 15, 15>::Zero();
+  const Eigen::Matrix3d I = Eigen::Matrix3d::Identity();
+  T.block<3, 3>(0, 3) = I;   // dp <- dp
+  T.block<3, 3>(3, 0) = Rws; // dtheta_world <- dtheta_body
+  T.block<3, 3>(6, 6) = I;   // dv <- dv
+  T.block<3, 3>(9, 9) = I;   // dbg <- dbg
+  T.block<3, 3>(12, 12) = I; // dba <- dba
+  return T;
+}
+
+static Eigen::Matrix<double, 15, 15> build_T_okvis_to_ov(const Eigen::Matrix3d &Rws) {
+  // Inverse of build_T_ov_to_okvis:
+  // dtheta_body = Rws^T * dtheta_world, and reorder back to OV layout.
+  Eigen::Matrix<double, 15, 15> Tinv = Eigen::Matrix<double, 15, 15>::Zero();
+  const Eigen::Matrix3d I = Eigen::Matrix3d::Identity();
+  Tinv.block<3, 3>(0, 3) = Rws.transpose(); // dtheta_body <- dtheta_world
+  Tinv.block<3, 3>(3, 0) = I;              // dp <- dp
+  Tinv.block<3, 3>(6, 6) = I;              // dv <- dv
+  Tinv.block<3, 3>(9, 9) = I;              // dbg <- dbg
+  Tinv.block<3, 3>(12, 12) = I;            // dba <- dba
+  return Tinv;
+}
 
 int main(int argc, char **argv) {
   try {
@@ -383,10 +402,13 @@ int main(int argc, char **argv) {
     const double R_err = rot_angle_rad(R_recon.transpose() * Rws_e);
     std::cout << std::setprecision(6) << "recon errors: |p|=" << p_err << " |v|=" << v_err << " angle=" << R_err << " rad\n";
 
-    // 3) Permute OV -> OKVIS 15D ordering.
-    const Eigen::Matrix<double, 15, 15> P = build_perm_OV_to_OKVIS();
-    const Eigen::Matrix<double, 15, 15> covRK4 = P * pack.Sigma * P.transpose();
-    const Eigen::Matrix<double, 15, 15> jacRK4 = P * pack.Phi * P.transpose();
+    // 3) Convert OV error state (defined on q_GtoI with JPL left perturbation) into OKVIS-style error state.
+    // In OV, dtheta is in the IMU/body frame (because it perturbs R_GtoI on the left).
+    // In OKVIS, we use dtheta in the world frame (left perturbation on Rws = R_GtoI^T).
+    const Eigen::Matrix<double, 15, 15> T_e = build_T_ov_to_okvis(Rws_e);
+    const Eigen::Matrix<double, 15, 15> T_s_inv = build_T_okvis_to_ov(Rws_s);
+    const Eigen::Matrix<double, 15, 15> covRK4 = T_e * pack.Sigma * T_e.transpose();
+    const Eigen::Matrix<double, 15, 15> jacRK4 = T_e * pack.Phi * T_s_inv;
 
     // 4) Build maps (Tangent).
     const Maps15 maps = BuildMaps15_Tangent(Rws_s, dR, dP, dV, pack.dt);
