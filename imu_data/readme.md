@@ -14,7 +14,7 @@ source /ws/devel/setup.bash
 
 cd /ws
 catkin clean sliding_window_estimator -y
-catkin build slidinsg_window_estimator
+catkin build sliding_window_estimator
 source /ws/devel/setup.bash
 
 rosrun sliding_window_estimator preint_from_openvins_pack \
@@ -36,9 +36,56 @@ source /ws/devel/setup.bash
 rosrun sliding_window_estimator preint_from_openvins_pack \
   /ws/src/swift_vio/imu_data/imu_prop_pack.yaml \
   /ws/src/swift_vio/imu_data
+```
+root@liuyi:/ws# rosrun sliding_window_estimator preint_from_openvins_pack \
+>   /ws/src/swift_vio/imu_data/imu_prop_pack.yaml \
+>   /ws/src/swift_vio/imu_data
+recon errors: |p|=2.84217e-14 |v|=3.55271e-15 angle=0 rad
+```
 
 # 再对比
 rosrun sliding_window_estimator compare_preint_outputs \
   --ov_pack_yaml /ws/src/swift_vio/imu_data/imu_prop_pack.yaml \
   --ov_all /ws/src/swift_vio/imu_data/preint_from_openvins_pack_all.txt \
   --gtsam_all /ws/src/swift_vio/imu_data/gtsam_ref_out/gtsam_ref_preint_all.txt
+
+```
+root@liuyi:/ws# rosrun sliding_window_estimator compare_preint_outputs \
+>   --ov_pack_yaml /ws/src/swift_vio/imu_data/imu_prop_pack.yaml \
+>   --ov_all /ws/src/swift_vio/imu_data/preint_from_openvins_pack_all.txt \
+>   --gtsam_all /ws/src/swift_vio/imu_data/gtsam_ref_out/gtsam_ref_preint_all.txt
+Delta checks:
+  angle(dR_ov^T*dR_gtsam) = 0.001261670008 rad
+  ||dP_ov-dP_gtsam||      = 0.080415920701
+  ||dV_ov-dV_gtsam||      = 0.013735819715
+  |dt_ov-dt_gtsam|        = 0.000000000000
+  rel_dP                  = 0.000175010999
+  rel_dV                  = 0.000152794338
+  angle(dR) < 5e-3 rad: PASS
+  dP abs/rel: PASS
+  dV abs/rel: PASS
+  dt < 1e-12: PASS
+
+Sigma_z checks:
+  maxAbs(diff)            = 0.773467427300
+  rel                     = 0.000667960991   (den=max(1,maxAbs(ref)))
+  Sigma_z rel < 1e-3: PASS
+
+JincBias checks:
+  maxAbs(diff)            = 0.736448715551
+  rel                     = 0.000561977949   (den=max(1,maxAbs(ref)))
+  JincBias rel < 1e-3: PASS
+
+Sanity checks:
+  Sigma_z_ov symmetry maxAbs(S-S^T)   = 0.000000000000
+  Sigma_z_gtsam symmetry maxAbs(S-S^T)= 0.000000000003
+  Sigma_z_ov min eigen (sym)          = 0.000038391991
+  Sigma_z_gtsam min eigen (sym)       = 0.000038393967
+  Sigma_z_ov symmetry < 1e-8: PASS
+  Sigma_z_gtsam symmetry < 1e-8: PASS
+  Sigma_z_ov minEig >= -1e-8: PASS
+  Sigma_z_gtsam minEig >= -1e-8: PASS
+
+Overall: PASS
+root@liuyi:/ws# 
+```
