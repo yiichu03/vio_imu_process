@@ -236,7 +236,7 @@ static Eigen::Matrix<double, R, C> parse_block_matrix(const std::string &path, c
   return M;
 }
 
-// -------- OpenVINS pack yaml parsing (copied from preint_from_openvins_pack.cpp) --------
+// -------- OpenVINS pack yaml parsing (shared with check_jincbias_from_openvins_yaml.cpp) --------
 
 struct OvNominal {
   Eigen::Matrix3d R_GtoI = Eigen::Matrix3d::Identity();
@@ -492,7 +492,7 @@ int main(int argc, char **argv) {
     const Eigen::Matrix<double, 15, 15> Sigma_z_gtsam = parse_block_matrix<15, 15>(gtsam_all, "Sigma_z_gtsam");
     const Eigen::Matrix<double, 9, 6> JincBias_ba_bg_gtsam = parse_block_matrix<9, 6>(gtsam_all, "JincBias_ba_bg_gtsam");
 
-    // -------- Compute dR/dP/dV from ov_pack_yaml (must match preint_from_openvins_pack.cpp) --------
+    // -------- Compute dR/dP/dV from ov_pack_yaml (same formulas as preint reconstruction) --------
 
     const Eigen::Matrix3d Rws_s = pack.xs.R_GtoI.transpose();
     const Eigen::Matrix3d Rws_e = pack.xe.R_GtoI.transpose();

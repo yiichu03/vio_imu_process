@@ -296,8 +296,8 @@ target_link_libraries(vi_bundle_adjustment ${PROJECT_NAME})
 add_executable(propag_by_preint src/apps/propag_by_preint.cpp)
 target_link_libraries(propag_by_preint ${PROJECT_NAME} GTest::gtest)
 
-add_executable(preint_from_openvins_pack src/apps/preint_from_openvins_pack.cpp)
-target_link_libraries(preint_from_openvins_pack ${PROJECT_NAME})
+add_executable(check_jincbias_from_openvins_yaml src/apps/check_jincbias_from_openvins_yaml.cpp)
+target_link_libraries(check_jincbias_from_openvins_yaml ${PROJECT_NAME})
 
 add_executable(gtsam_ref_preint_from_txt src/apps/gtsam_ref_preint_from_txt.cpp)
 target_link_libraries(gtsam_ref_preint_from_txt ${PROJECT_NAME})

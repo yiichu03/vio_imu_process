@@ -1,7 +1,7 @@
 文件夹有🔓时候 sudo chown -R $USER:$USER /路径/到/文件夹
 
 
-新增源码：preint_from_openvins_pack.cpp (line 1)
+新增源码：check_jincbias_from_openvins_yaml.cpp
 
 读 OpenVINS 的 imu_prop_pack.yaml，解析 xs/xe/dt/gravity/Phi_15x15/Sigma_15x15_from_zero
 做你要求的：Rws = R_GtoI^T，反解 dR/dP/dV（起始 body(S) 系），OV->[dp,dtheta,dv,dbg,dba] 重排，调用 BuildMaps15_Tangent，输出 Sigma_z、JincBias_*，并打印 recon 误差。
@@ -17,9 +17,8 @@ catkin clean sliding_window_estimator -y
 catkin build sliding_window_estimator
 source /ws/devel/setup.bash
 
-rosrun sliding_window_estimator preint_from_openvins_pack \
-  /ws/src/swift_vio/imu_data/imu_openvins_prop_preint.yaml \
-  /ws/src/swift_vio/imu_data/imu_openvins_prop_preint_gtsam.yaml
+rosrun sliding_window_estimator check_jincbias_from_openvins_yaml \
+  /ws/src/swift_vio/imu_data/imu_openvins_prop_preint.yaml
 
 rosrun sliding_window_estimator gtsam_ref_preint_from_txt \
   /ws/src/swift_vio/imu_data/imu_data_Tangent_0.txt \
