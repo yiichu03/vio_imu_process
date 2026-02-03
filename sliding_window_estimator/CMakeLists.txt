@@ -305,9 +305,6 @@ target_link_libraries(gtsam_ref_preint_from_txt ${PROJECT_NAME})
 add_executable(compare_preint_outputs src/apps/compare_preint_outputs.cpp)
 target_link_libraries(compare_preint_outputs ${PROJECT_NAME})
 
-add_executable(compare_preint_outputs2 src/apps/compare_preint_outputs2.cpp)
-target_link_libraries(compare_preint_outputs2 ${PROJECT_NAME})
-
 add_executable(imu_file_smoketest src/apps/imu_file_smoketest.cpp)
 target_link_libraries(imu_file_smoketest ${PROJECT_NAME} gflags)
 
