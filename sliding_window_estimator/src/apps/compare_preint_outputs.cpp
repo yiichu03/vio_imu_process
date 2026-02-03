@@ -19,6 +19,7 @@ static inline Eigen::Matrix3d crossMx(const Eigen::Vector3d &v) {
   return m;
 }
 
+// swift_vio_ws/devel/include/swift_vio/imu/CovPropConfig.hpp line 54
 // Same criterion as swift_vio/imu/CovPropConfig.hpp::expectNearAbsRel:
 // tol = absTol + relTol * max(|ref|, |est|), checked entry-wise.
 static bool expectNearAbsRel(const Eigen::MatrixXd &ref, const Eigen::MatrixXd &est, double absTol, double relTol) {
@@ -31,6 +32,10 @@ static bool expectNearAbsRel(const Eigen::MatrixXd &ref, const Eigen::MatrixXd &
       const double b = est(r, c);
       const double diff = std::abs(a - b);
       const double scale = std::max(std::abs(a), std::abs(b));
+
+      //  abs+rel 混合容差
+      // 当元素很小（scale≈0）：tol≈absTol，退化成“绝对误差比较”，避免除零/夸大。
+      // 当元素很大：tol≈relTol*scale，退化成“相对误差比较”，允许与量级成比例的误差。
       const double tol = absTol + relTol * scale;
       if (diff > tol) {
         return false;
