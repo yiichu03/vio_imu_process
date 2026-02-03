@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cctype>
 #include <cmath>
+#include <limits>
 #include <fstream>
 #include <iomanip>
 #include <iostream>
@@ -22,10 +23,24 @@ static inline Eigen::Matrix3d crossMx(const Eigen::Vector3d &v) {
 // swift_vio_ws/devel/include/swift_vio/imu/CovPropConfig.hpp line 54
 // Same criterion as swift_vio/imu/CovPropConfig.hpp::expectNearAbsRel:
 // tol = absTol + relTol * max(|ref|, |est|), checked entry-wise.
-static bool expectNearAbsRel(const Eigen::MatrixXd &ref, const Eigen::MatrixXd &est, double absTol, double relTol) {
+struct AbsRelCheckResult {
+  bool ok = true;
+  int fail_count = 0;
+  int worst_r = -1;
+  int worst_c = -1;
+  double worst_ref = 0.0;
+  double worst_est = 0.0;
+  double worst_diff = 0.0;
+  double worst_tol = 0.0;
+  double worst_violation = -std::numeric_limits<double>::infinity(); // diff - tol
+};
+
+static AbsRelCheckResult absRelCheck(const Eigen::MatrixXd &ref, const Eigen::MatrixXd &est, double absTol, double relTol) {
   if (ref.rows() != est.rows() || ref.cols() != est.cols()) {
-    throw std::runtime_error("expectNearAbsRel: dimension mismatch");
+    throw std::runtime_error("absRelCheck: dimension mismatch");
   }
+
+  AbsRelCheckResult out;
   for (int r = 0; r < ref.rows(); ++r) {
     for (int c = 0; c < ref.cols(); ++c) {
       const double a = ref(r, c);
@@ -33,16 +48,70 @@ static bool expectNearAbsRel(const Eigen::MatrixXd &ref, const Eigen::MatrixXd &
       const double diff = std::abs(a - b);
       const double scale = std::max(std::abs(a), std::abs(b));
 
-      //  abs+rel 混合容差
-      // 当元素很小（scale≈0）：tol≈absTol，退化成“绝对误差比较”，避免除零/夸大。
-      // 当元素很大：tol≈relTol*scale，退化成“相对误差比较”，允许与量级成比例的误差。
+      // abs+rel 混合容差:
+      // - 元素很小（scale≈0）：tol≈absTol，退化成“绝对误差比较”，避免除零/夸大。
+      // - 元素很大：tol≈relTol*scale，退化成“相对误差比较”，允许与量级成比例的误差。
       const double tol = absTol + relTol * scale;
+      const double violation = diff - tol;
+
+      if (violation > out.worst_violation) {
+        out.worst_violation = violation;
+        out.worst_r = r;
+        out.worst_c = c;
+        out.worst_ref = a;
+        out.worst_est = b;
+        out.worst_diff = diff;
+        out.worst_tol = tol;
+      }
+
       if (diff > tol) {
-        return false;
+        out.ok = false;
+        out.fail_count++;
       }
     }
   }
-  return true;
+  return out;
+}
+
+static const char *axis_name(int idx) {
+  switch (idx) {
+  case 0:
+    return "x";
+  case 1:
+    return "y";
+  default:
+    return "z";
+  }
+}
+
+static std::string describe_jincbias_entry(int r, int c) {
+  // Rows: [dphi(0-2), dp(3-5), dv(6-8)] ; Cols: [dba(0-2), dbg(3-5)]
+  const int row_group = r / 3;
+  const int row_axis = r % 3;
+  const int col_group = c / 3;
+  const int col_axis = c % 3;
+
+  const char *row_name = (row_group == 0) ? "dphi" : (row_group == 1) ? "dp" : "dv";
+  const char *col_name = (col_group == 0) ? "dba" : "dbg";
+
+  std::ostringstream oss;
+  oss << row_name << "_" << axis_name(row_axis) << " / " << col_name << "_" << axis_name(col_axis);
+  return oss.str();
+}
+
+static std::string describe_sigmaz_entry(int r, int c) {
+  // z_order in YAML: [dphi, dp, dv, dba, dbg] (each 3D)
+  auto label = [](int idx) -> std::string {
+    const int g = idx / 3;
+    const int a = idx % 3;
+    const char *name = (g == 0) ? "dphi" : (g == 1) ? "dp" : (g == 2) ? "dv" : (g == 3) ? "dba" : "dbg";
+    std::ostringstream oss;
+    oss << name << "_" << axis_name(a);
+    return oss.str();
+  };
+  std::ostringstream oss;
+  oss << label(r) << " / " << label(c);
+  return oss.str();
 }
 
 static inline std::string trim(const std::string &s) {
@@ -53,6 +122,29 @@ static inline std::string trim(const std::string &s) {
   while (e > b && std::isspace(static_cast<unsigned char>(s[e - 1])))
     e--;
   return s.substr(b, e - b);
+}
+
+static bool parse_bracket_list(const std::string &raw, std::vector<double> &out) {
+  const size_t lb = raw.find('[');
+  if (lb == std::string::npos)
+    return false;
+  const size_t rb = raw.find(']', lb + 1);
+  if (rb == std::string::npos || rb <= lb)
+    return false;
+  const std::string inside = raw.substr(lb + 1, rb - (lb + 1));
+  std::stringstream ss(inside);
+  std::string tok;
+  std::vector<double> vals;
+  while (std::getline(ss, tok, ',')) {
+    const std::string t = trim(tok);
+    if (t.empty())
+      continue;
+    vals.push_back(std::stod(t));
+  }
+  if (vals.empty())
+    return false;
+  out = std::move(vals);
+  return true;
 }
 
 static std::vector<std::string> read_lines(const std::string &path) {
@@ -145,6 +237,8 @@ struct OvPack {
   OvNominal xe;
   double dt = 0.0;
   Eigen::Vector3d gravity_G = Eigen::Vector3d(0, 0, -9.81);
+  Eigen::Matrix<double, 15, 15> Sigma_z = Eigen::Matrix<double, 15, 15>::Zero();
+  Eigen::Matrix<double, 9, 6> JincBias_ba_bg = Eigen::Matrix<double, 9, 6>::Zero();
 };
 
 static bool parse_scalar_double_top(const std::vector<std::string> &lines, const std::string &key, double &out) {
@@ -201,6 +295,52 @@ static bool parse_inline_list_in_section(const std::vector<std::string> &lines, 
     return !out.empty();
   }
   return false;
+}
+
+template <int R, int C>
+static Eigen::Matrix<double, R, C> parse_yaml_list_matrix_in_section(const std::vector<std::string> &lines, const std::string &section,
+                                                                     const std::string &key) {
+  const std::string section_hdr = section + ":";
+  const std::string key_hdr = key + ":";
+  bool in_section = false;
+  for (size_t i = 0; i < lines.size(); i++) {
+    const std::string raw = lines[i];
+    const std::string t = trim(raw);
+    if (!in_section) {
+      if (t == section_hdr && (raw.empty() || raw[0] != ' ')) {
+        in_section = true;
+      }
+      continue;
+    }
+
+    // stop at next top-level key
+    if (!raw.empty() && raw[0] != ' ')
+      break;
+
+    if (t != key_hdr)
+      continue;
+
+    Eigen::Matrix<double, R, C> M;
+    M.setZero();
+    size_t j = i + 1;
+    for (int r = 0; r < R; r++) {
+      while (j < lines.size() && trim(lines[j]).empty())
+        j++;
+      if (j >= lines.size()) {
+        throw std::runtime_error("unexpected EOF while reading '" + section + "." + key + "'");
+      }
+      std::vector<double> row;
+      if (!parse_bracket_list(lines[j], row) || static_cast<int>(row.size()) != C) {
+        throw std::runtime_error("failed to parse '" + section + "." + key + "' row " + std::to_string(r));
+      }
+      for (int c = 0; c < C; c++) {
+        M(r, c) = row[c];
+      }
+      j++;
+    }
+    return M;
+  }
+  throw std::runtime_error("missing block '" + section + "." + key + "' in YAML");
 }
 
 static Eigen::Vector3d to_vec3(const std::vector<double> &v, const std::string &what) {
@@ -269,6 +409,10 @@ static OvPack load_ov_pack_yaml(const std::string &path) {
     pack.gravity_G = to_vec3(g, "gravity_g.config_gravity_input");
   }
 
+  // OpenVINS tool exports GTSAM-tangent preintegration outputs inside the same YAML.
+  pack.Sigma_z = parse_yaml_list_matrix_in_section<15, 15>(lines, "gtsam_tangent_preint", "Sigma_z_15x15");
+  pack.JincBias_ba_bg = parse_yaml_list_matrix_in_section<9, 6>(lines, "gtsam_tangent_preint", "JincBias_ba_bg_9x6");
+
   return pack;
 }
 
@@ -291,19 +435,11 @@ static double minEigenSymmetric(const Eigen::MatrixXd &M) {
   return es.eigenvalues().minCoeff();
 }
 
-static Eigen::Matrix<double, 9, 6> swap_bg_ba_to_ba_bg(const Eigen::Matrix<double, 9, 6> &J_bg_ba) {
-  Eigen::Matrix<double, 9, 6> J_ba_bg = Eigen::Matrix<double, 9, 6>::Zero();
-  J_ba_bg.block<9, 3>(0, 0) = J_bg_ba.block<9, 3>(0, 3);
-  J_ba_bg.block<9, 3>(0, 3) = J_bg_ba.block<9, 3>(0, 0);
-  return J_ba_bg;
-}
-
 } // namespace
 
 int main(int argc, char **argv) {
   try {
     std::string ov_pack_yaml;
-    std::string ov_all;
     std::string gtsam_all;
 
     for (int i = 1; i < argc; i++) {
@@ -315,42 +451,26 @@ int main(int argc, char **argv) {
       };
       if (a == "--ov_pack_yaml") {
         ov_pack_yaml = next();
-      } else if (a == "--ov_all") {
-        ov_all = next();
       } else if (a == "--gtsam_all") {
         gtsam_all = next();
       } else if (a == "--help" || a == "-h") {
-        std::cout << "usage: " << argv[0] << " --ov_pack_yaml <imu_prop_pack.yaml> --ov_all <preint_from_openvins_pack_all.txt>"
-                  << " --gtsam_all <gtsam_ref_preint_all.txt>\n";
+        std::cout << "usage: " << argv[0] << " --ov_pack_yaml <imu_openvins_prop_preint.yaml> --gtsam_all <gtsam_ref_preint_all.txt>\n";
         return EXIT_SUCCESS;
       } else {
         throw std::runtime_error("unknown argument: " + a);
       }
     }
 
-    if (ov_pack_yaml.empty() || ov_all.empty() || gtsam_all.empty()) {
-      std::cerr << "usage: " << argv[0] << " --ov_pack_yaml <imu_prop_pack.yaml> --ov_all <preint_from_openvins_pack_all.txt>"
-                << " --gtsam_all <gtsam_ref_preint_all.txt>\n";
+    if (ov_pack_yaml.empty() || gtsam_all.empty()) {
+      std::cerr << "usage: " << argv[0] << " --ov_pack_yaml <imu_openvins_prop_preint.yaml> --gtsam_all <gtsam_ref_preint_all.txt>\n";
       return EXIT_FAILURE;
     }
 
     // -------- Parse inputs --------
 
     const OvPack pack = load_ov_pack_yaml(ov_pack_yaml);
-
-    Eigen::Matrix<double, 15, 15> Sigma_z_ov = parse_block_matrix<15, 15>(ov_all, "Sigma_z_from_openvins_pack");
-
-    Eigen::Matrix<double, 9, 6> JincBias_ba_bg_ov;
-    bool has_ba_bg = true;
-    try {
-      JincBias_ba_bg_ov = parse_block_matrix<9, 6>(ov_all, "JincBias_ba_bg_rk4");
-    } catch (...) {
-      has_ba_bg = false;
-    }
-    if (!has_ba_bg) {
-      const Eigen::Matrix<double, 9, 6> J_bg_ba = parse_block_matrix<9, 6>(ov_all, "JincBias_bg_ba_rk4");
-      JincBias_ba_bg_ov = swap_bg_ba_to_ba_bg(J_bg_ba);
-    }
+    const Eigen::Matrix<double, 15, 15> Sigma_z_ov = pack.Sigma_z;
+    const Eigen::Matrix<double, 9, 6> JincBias_ba_bg_ov = pack.JincBias_ba_bg;
 
     const Eigen::Matrix3d dR_gtsam = parse_block_matrix<3, 3>(gtsam_all, "dR_gtsam");
     const Eigen::Matrix<double, 3, 1> dP_gtsam = parse_block_matrix<3, 1>(gtsam_all, "dP_gtsam");
@@ -385,8 +505,8 @@ int main(int argc, char **argv) {
     // Teacher-style per-entry abs+rel check (same as CovPropConfig.hpp::expectNearAbsRel).
     constexpr double kAbsTol = 1e-4;
     constexpr double kRelTol = 1e-2;
-    const bool Sigma_ok = expectNearAbsRel(Sigma_z_gtsam, Sigma_z_ov, kAbsTol, kRelTol);
-    const bool J_ok = expectNearAbsRel(JincBias_ba_bg_gtsam, JincBias_ba_bg_ov, kAbsTol, kRelTol);
+    const AbsRelCheckResult Sigma_chk = absRelCheck(Sigma_z_gtsam, Sigma_z_ov, kAbsTol, kRelTol);
+    const AbsRelCheckResult J_chk = absRelCheck(JincBias_ba_bg_gtsam, JincBias_ba_bg_ov, kAbsTol, kRelTol);
 
     const double sym_ov = maxAbs(Sigma_z_ov - Sigma_z_ov.transpose());
     const double sym_gs = maxAbs(Sigma_z_gtsam - Sigma_z_gtsam.transpose());
@@ -426,11 +546,26 @@ int main(int argc, char **argv) {
 
     std::cout << "\nSigma_z checks:\n";
     std::cout << "  absTol=" << kAbsTol << " relTol=" << kRelTol << "\n";
-    check("  Sigma_z abs+rel (entrywise)", Sigma_ok);
+    check("  Sigma_z abs+rel (entrywise)", Sigma_chk.ok);
+    if (!Sigma_chk.ok) {
+      std::cout << "  Sigma_z failing entries      = " << Sigma_chk.fail_count << "\n";
+      std::cout << "  Sigma_z worst entry          = (" << Sigma_chk.worst_r << "," << Sigma_chk.worst_c << ")  ["
+                << describe_sigmaz_entry(Sigma_chk.worst_r, Sigma_chk.worst_c) << "]\n";
+      std::cout << "    ref=" << Sigma_chk.worst_ref << " est=" << Sigma_chk.worst_est << "\n";
+      std::cout << "    diff=" << Sigma_chk.worst_diff << " tol=" << Sigma_chk.worst_tol
+                << " (violation=" << Sigma_chk.worst_violation << ")\n";
+    }
 
     std::cout << "\nJincBias checks:\n";
     std::cout << "  absTol=" << kAbsTol << " relTol=" << kRelTol << "\n";
-    check("  JincBias abs+rel (entrywise)", J_ok);
+    check("  JincBias abs+rel (entrywise)", J_chk.ok);
+    if (!J_chk.ok) {
+      std::cout << "  JincBias failing entries     = " << J_chk.fail_count << "\n";
+      std::cout << "  JincBias worst entry         = (" << J_chk.worst_r << "," << J_chk.worst_c << ")  ["
+                << describe_jincbias_entry(J_chk.worst_r, J_chk.worst_c) << "]\n";
+      std::cout << "    ref=" << J_chk.worst_ref << " est=" << J_chk.worst_est << "\n";
+      std::cout << "    diff=" << J_chk.worst_diff << " tol=" << J_chk.worst_tol << " (violation=" << J_chk.worst_violation << ")\n";
+    }
 
     std::cout << "\nSanity checks:\n";
     std::cout << "  Sigma_z_ov symmetry maxAbs(S-S^T)   = " << sym_ov << "\n";

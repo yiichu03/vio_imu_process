@@ -1,7 +1,6 @@
 #include <Eigen/Dense>
 
 #include <gtsam/geometry/Rot3.h>
-#include <gtsam/navigation/CombinedImuFactor.h>
 
 #include <algorithm>
 #include <cctype>
@@ -105,7 +104,6 @@ struct OvPack {
   double dt = 0.0;
   Eigen::Vector3d gravity_G = Eigen::Vector3d(0, 0, -9.81);
   Eigen::Matrix<double, 15, 15> Phi = Eigen::Matrix<double, 15, 15>::Identity();
-  Eigen::Matrix<double, 15, 15> Sigma = Eigen::Matrix<double, 15, 15>::Zero();
 };
 
 static inline std::string trim(const std::string &s) {
@@ -131,6 +129,77 @@ static std::vector<std::string> read_lines(const std::string &path) {
     lines.push_back(line);
   }
   return lines;
+}
+
+template <int R, int C>
+static std::string yaml_list_row(const Eigen::Matrix<double, R, C> &M, int r, int indent_spaces) {
+  std::ostringstream oss;
+  oss << std::string(indent_spaces, ' ') << "- [";
+  oss << std::setprecision(17);
+  for (int c = 0; c < C; c++) {
+    oss << M(r, c);
+    if (c + 1 < C) {
+      oss << ", ";
+    }
+  }
+  oss << "]";
+  return oss.str();
+}
+
+template <int R, int C>
+static void overwrite_yaml_list_matrix_in_section(std::vector<std::string> &lines, const std::string &section, const std::string &key,
+                                                  const Eigen::Matrix<double, R, C> &M) {
+  const std::string section_hdr = section + ":";
+  const std::string key_hdr = key + ":";
+
+  size_t section_line = std::string::npos;
+  for (size_t i = 0; i < lines.size(); i++) {
+    const std::string raw = lines[i];
+    if (!raw.empty() && raw[0] == ' ')
+      continue;
+    if (trim(raw) == section_hdr) {
+      section_line = i;
+      break;
+    }
+  }
+  if (section_line == std::string::npos) {
+    throw std::runtime_error("missing YAML section: " + section);
+  }
+
+  size_t key_line = std::string::npos;
+  for (size_t i = section_line + 1; i < lines.size(); i++) {
+    const std::string raw = lines[i];
+    if (!raw.empty() && raw[0] != ' ')
+      break; // next top-level key
+    if (trim(raw) == key_hdr) {
+      key_line = i;
+      break;
+    }
+  }
+  if (key_line == std::string::npos) {
+    throw std::runtime_error("missing YAML key: " + section + "." + key);
+  }
+
+  // Preserve indentation from the existing YAML for minimal diff.
+  const std::string &raw_key_line = lines[key_line];
+  const size_t first_non_space = raw_key_line.find_first_not_of(' ');
+  const int key_indent = (first_non_space == std::string::npos) ? 0 : static_cast<int>(first_non_space);
+  const int row_indent = key_indent + 2;
+
+  size_t idx = key_line + 1;
+  for (int r = 0; r < R; r++) {
+    while (idx < lines.size() && trim(lines[idx]).empty()) {
+      idx++;
+    }
+    const std::string new_line = yaml_list_row(M, r, row_indent);
+    if (idx >= lines.size() || (!lines[idx].empty() && lines[idx][0] != ' ')) {
+      lines.insert(lines.begin() + static_cast<long>(idx), new_line);
+      idx++;
+      continue;
+    }
+    lines[idx] = new_line;
+    idx++;
+  }
 }
 
 static bool parse_scalar_double_top(const std::vector<std::string> &lines, const std::string &key, double &out) {
@@ -305,30 +374,12 @@ static OvPack load_pack(const std::string &path) {
     if (!parse_inline_list_in_section(lines, "gravity_g", "config_gravity_input", g)) {
       throw std::runtime_error("missing gravity_g.config_gravity_input");
     }
-    pack.gravity_G = to_vec3(g, "gravity_g.config_gravity_input");
+  pack.gravity_G = to_vec3(g, "gravity_g.config_gravity_input");
   }
 
   pack.Phi = parse_matrix15_top(lines, "Phi_15x15");
-  pack.Sigma = parse_matrix15_top(lines, "Sigma_15x15_from_zero");
 
   return pack;
-}
-
-template <typename Derived>
-static void appendMatrixBlock(std::ostream &os, const std::string &name, const Eigen::MatrixBase<Derived> &mat) {
-  os << name << " (" << mat.rows() << "x" << mat.cols() << ")\n";
-  os.setf(std::ios::fixed);
-  os << std::setprecision(18);
-  for (int r = 0; r < mat.rows(); ++r) {
-    for (int c = 0; c < mat.cols(); ++c) {
-      os << mat(r, c);
-      if (c < mat.cols() - 1) {
-        os << ' ';
-      }
-    }
-    os << '\n';
-  }
-  os << '\n';
 }
 
 static double rot_angle_rad(const Eigen::Matrix3d &R) {
@@ -356,13 +407,15 @@ static Eigen::Matrix<double, 15, 15> build_T_ov_to_gtsam_state(const Eigen::Matr
 
 int main(int argc, char **argv) {
   try {
-    if (argc < 2) {
-      std::cerr << "usage: " << argv[0] << " <imu_prop_pack.yaml> [out_dir]\n";
+    if (argc != 3) {
+      std::cerr << "usage: " << argv[0] << " <imu_openvins_prop_preint.yaml> <imu_openvins_prop_preint_gtsam.yaml>\n";
       return EXIT_FAILURE;
     }
     const std::string pack_path = argv[1];
-    const std::string out_dir = (argc >= 3) ? std::string(argv[2]) : std::string(".");
-    std::filesystem::create_directories(out_dir);
+    const std::string out_yaml = argv[2];
+    if (!std::filesystem::path(out_yaml).parent_path().empty()) {
+      std::filesystem::create_directories(std::filesystem::path(out_yaml).parent_path());
+    }
 
     const OvPack pack = load_pack(pack_path);
 
@@ -392,14 +445,12 @@ int main(int argc, char **argv) {
     // OV uses left perturbation on R_GtoI (world->body), so dtheta is in the body frame.
     // We convert to a standard state error on Rws = R_GtoI^T (body->world) with dtheta in the world frame.
     const Eigen::Matrix<double, 15, 15> T_e = build_T_ov_to_gtsam_state(Rws_e);
-    const Eigen::Matrix<double, 15, 15> covRK4 = T_e * pack.Sigma * T_e.transpose();
     const Eigen::Matrix<double, 15, 15> jac_e_wrt_xs_ov = T_e * pack.Phi;
 
     // 4) Build maps (Tangent).
     const Maps15 maps = BuildMaps15_Tangent(Rws_s, dR, dP, dV, pack.dt);
 
-    // 5) Compute Sigma_z and JincBias from RK4-equivalent cov/jac.
-    const Eigen::Matrix<double, 15, 15> Sigma_z = maps.covG_inv * covRK4 * maps.covG_inv.transpose();
+    // 5) Compute JincBias from the propagated OV Phi, using the same mapping as src/apps/propag_by_preint.cpp.
     const Eigen::Matrix<double, 9, 6> JincBias_bg_ba_rk4 =
         maps.G_inv.topLeftCorner<9, 9>() * jac_e_wrt_xs_ov.topRows(9).rightCols(6);
 
@@ -407,28 +458,21 @@ int main(int argc, char **argv) {
     // swapBias maps [ba,bg] -> [bg,ba], so applying it twice returns to original.
     const Eigen::Matrix<double, 9, 6> JincBias_ba_bg_rk4 = swapBias(JincBias_bg_ba_rk4);
 
-    // 6) Save matrices to txt files (space-separated, same as saveMatrix in propag_by_preint.cpp).
-    // Write a single combined txt for easier reading.
-    {
-      const std::string all_path = out_dir + "/preint_from_openvins_pack_all.txt";
-      std::ofstream ofs(all_path, std::ios::trunc);
-      if (!ofs.is_open()) {
-        throw std::runtime_error("failed to open for writing: " + all_path);
-      }
-      ofs << "# preint_from_openvins_pack\n";
-      ofs << "# pack_yaml: " << pack_path << "\n";
-      ofs << std::setprecision(17) << "# dt: " << pack.dt << "\n";
-      ofs << std::setprecision(6) << "# recon_errors: |p|=" << p_err << " |v|=" << v_err << " angle_rad=" << R_err << "\n\n";
+    // 6) Copy YAML and overwrite only JincBias blocks.
+    std::vector<std::string> out_lines = read_lines(pack_path);
+    overwrite_yaml_list_matrix_in_section<9, 6>(out_lines, "gtsam_tangent_preint", "JincBias_ba_bg_9x6", JincBias_ba_bg_rk4);
+    overwrite_yaml_list_matrix_in_section<9, 6>(out_lines, "gtsam_tangent_preint", "JincBias_bg_ba_9x6", JincBias_bg_ba_rk4);
 
-      appendMatrixBlock(ofs, "covRK4_from_openvins_pack", covRK4);
-      appendMatrixBlock(ofs, "jacRK4_from_openvins_pack", jac_e_wrt_xs_ov);
-      appendMatrixBlock(ofs, "Sigma_z_from_openvins_pack", Sigma_z);
-      appendMatrixBlock(ofs, "JincBias_bg_ba_rk4", JincBias_bg_ba_rk4);
-      appendMatrixBlock(ofs, "JincBias_ba_bg_rk4", JincBias_ba_bg_rk4);
+    std::ofstream ofs(out_yaml, std::ios::trunc);
+    if (!ofs.is_open()) {
+      throw std::runtime_error("failed to open for writing: " + out_yaml);
+    }
+    for (const auto &line : out_lines) {
+      ofs << line << "\n";
     }
 
     std::cout << "wrote:\n"
-              << "  " << out_dir << "/preint_from_openvins_pack_all.txt\n";
+              << "  " << out_yaml << "\n";
     return EXIT_SUCCESS;
 
   } catch (const std::exception &e) {

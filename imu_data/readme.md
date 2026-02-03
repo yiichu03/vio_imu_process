@@ -18,8 +18,8 @@ catkin build sliding_window_estimator
 source /ws/devel/setup.bash
 
 rosrun sliding_window_estimator preint_from_openvins_pack \
-  /ws/src/swift_vio/imu_data/imu_prop_pack.yaml \
-  /ws/src/swift_vio/imu_data
+  /ws/src/swift_vio/imu_data/imu_openvins_prop_preint.yaml \
+  /ws/src/swift_vio/imu_data/imu_openvins_prop_preint_gtsam.yaml
 
 rosrun sliding_window_estimator gtsam_ref_preint_from_txt \
   /ws/src/swift_vio/imu_data/imu_data_Tangent_0.txt \
@@ -32,27 +32,22 @@ cd /ws
 catkin build sliding_window_estimator
 source /ws/devel/setup.bash
 
-# 重新生成 ov_all
-rosrun sliding_window_estimator preint_from_openvins_pack \
-  /ws/src/swift_vio/imu_data/imu_prop_pack.yaml \
-  /ws/src/swift_vio/imu_data
-```
-root@liuyi:/ws# rosrun sliding_window_estimator preint_from_openvins_pack \
->   /ws/src/swift_vio/imu_data/imu_prop_pack.yaml \
->   /ws/src/swift_vio/imu_data
-recon errors: |p|=2.84217e-14 |v|=3.55271e-15 angle=0 rad
-```
+# OpenVINS 会输出一个同时包含 propagation + gtsam tangent preint 的 YAML（从 OpenVINS 容器里拷贝过来）
+# /ws/src/swift_vio/imu_data/imu_openvins_prop_preint.yaml
 
-# 再对比
+# 对比 OpenVINS vs GTSAM 参考实现
 rosrun sliding_window_estimator compare_preint_outputs \
-  --ov_pack_yaml /ws/src/swift_vio/imu_data/imu_prop_pack.yaml \
-  --ov_all /ws/src/swift_vio/imu_data/preint_from_openvins_pack_all.txt \
+  --ov_pack_yaml /ws/src/swift_vio/imu_data/imu_openvins_prop_preint.yaml \
   --gtsam_all /ws/src/swift_vio/imu_data/gtsam_ref_out/gtsam_ref_preint_all.txt
+
+rosrun sliding_window_estimator compare_preint_outputs \
+  --ov_pack_yaml /ws/src/swift_vio/imu_data/imu_openvins_prop_preint_gtsam.yaml \
+  --gtsam_all /ws/src/swift_vio/imu_data/gtsam_ref_out/gtsam_ref_preint_all.txt
+
 
 ```
 root@liuyi:/ws# rosrun sliding_window_estimator compare_preint_outputs \
->   --ov_pack_yaml /ws/src/swift_vio/imu_data/imu_prop_pack.yaml \
->   --ov_all /ws/src/swift_vio/imu_data/preint_from_openvins_pack_all.txt \
+>   --ov_pack_yaml /ws/src/swift_vio/imu_data/imu_openvins_prop_preint.yaml \
 >   --gtsam_all /ws/src/swift_vio/imu_data/gtsam_ref_out/gtsam_ref_preint_all.txt
 Delta checks:
   angle(dR_ov^T*dR_gtsam) = 0.001261670008 rad
@@ -67,14 +62,12 @@ Delta checks:
   dt < 1e-12: PASS
 
 Sigma_z checks:
-  maxAbs(diff)            = 0.773467427300
-  rel                     = 0.000667960991   (den=max(1,maxAbs(ref)))
-  Sigma_z rel < 1e-3: PASS
+  absTol=0.0001 relTol=0.01
+  Sigma_z abs+rel (entrywise): PASS
 
 JincBias checks:
-  maxAbs(diff)            = 0.736448715551
-  rel                     = 0.000561977949   (den=max(1,maxAbs(ref)))
-  JincBias rel < 1e-3: PASS
+  absTol=0.0001 relTol=0.01
+  JincBias abs+rel (entrywise): PASS
 
 Sanity checks:
   Sigma_z_ov symmetry maxAbs(S-S^T)   = 0.000000000000
