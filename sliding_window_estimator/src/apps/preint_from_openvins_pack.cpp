@@ -23,20 +23,19 @@ static inline Eigen::Matrix3d crossMx(const Eigen::Vector3d &v) {
 
 // Copied (minimally) from src/apps/propag_by_preint.cpp to keep the mapping identical.
 struct Maps15 {
-  Eigen::Matrix<double, 15, 15> F;    // df_e(x_s, Dx)/dx_s (OKVIS error state, x=[p,q,v,bg,ba])
+  Eigen::Matrix<double, 15, 15> F;    // df_e(x_s, Dx)/dx_s (state error x=[p,q,v,bg,ba])
   Eigen::Matrix<double, 15, 15> G;    // dx_e/dz for transition matrix (z=[dtheta,dp,dv,dba,dbg] of gtsam)
   Eigen::Matrix<double, 15, 15> covG; // dx_e/dz for covariance (z=[dtheta,dp,dv,dba,dbg] of gtsam)
   Eigen::Matrix<double, 15, 15> G_inv;
   Eigen::Matrix<double, 15, 15> covG_inv;
-  Eigen::Matrix<double, 15, 15> Phi; // dx_e/dx_s (OKVIS)
+  Eigen::Matrix<double, 15, 15> Phi; // dx_e/dx_s
 };
 
 static inline Eigen::Matrix<double, 9, 6> swapBias(const Eigen::Matrix<double, 9, 6> &JincBias_ba_bg) {
   Eigen::Matrix<double, 6, 6> P = Eigen::Matrix<double, 6, 6>::Zero();
-  // [bg,ba] -> [ba,bg]
-  P.block<3, 3>(0, 3) = Eigen::Matrix3d::Identity(); // ba <- ba part of okvis vector (which is at +3)
-  P.block<3, 3>(3, 0) = Eigen::Matrix3d::Identity(); // bg <- bg part of okvis vector (which is at +0)
-  // Now columns become [bg,ba] as needed by OKVIS state layout
+  // Swap bias column order: [ba,bg] <-> [bg,ba]
+  P.block<3, 3>(0, 3) = Eigen::Matrix3d::Identity(); // ba <- bg block
+  P.block<3, 3>(3, 0) = Eigen::Matrix3d::Identity(); // bg <- ba block
   Eigen::Matrix<double, 9, 6> JincBias_bg_ba = JincBias_ba_bg * P;
   return JincBias_bg_ba;
 }
@@ -63,7 +62,7 @@ static inline Maps15 BuildMaps15_Tangent(const Eigen::Matrix3d &Rws, const Eigen
 
   // Now G maps combined preint residual-space error z to end-state error.
   // z layout GTSAM [dphi, dp, dv, dba, dbg] defined in right perturbation sense.
-  // End-state OKVIS [dp, dtheta, dv, dbg, dba] defined in left perturbation sense.
+  // End-state state error [dp, dtheta, dv, dbg, dba] defined in left perturbation sense on Rws.
   Eigen::Matrix3d Rwe_from_s = Rws * dR;
   gtsam::Vector3 phi = gtsam::Rot3::Logmap(gtsam::Rot3(dR));
   Eigen::Matrix3d Jr = gtsam::so3::DexpFunctor(phi).rightJacobian();
@@ -341,10 +340,10 @@ static double rot_angle_rad(const Eigen::Matrix3d &R) {
 
 } // namespace
 
-static Eigen::Matrix<double, 15, 15> build_T_ov_to_okvis(const Eigen::Matrix3d &Rws) {
-  // OV error state:    [dtheta_body, dp_world, dv_world, dbg_body, dba_body]
-  // OKVIS error state: [dp_world, dtheta_world, dv_world, dbg_body, dba_body]
-  // with dtheta_world = Rws * dtheta_body.
+static Eigen::Matrix<double, 15, 15> build_T_ov_to_gtsam_state(const Eigen::Matrix3d &Rws) {
+  // OpenVINS error state: [dtheta_body, dp_world, dv_world, dbg_body, dba_body]
+  // GTSAM/State error:    [dp_world, dtheta_world, dv_world, dbg_body, dba_body]
+  // where dtheta_world = Rws * dtheta_body (because OV perturbs R_GtoI on the left).
   Eigen::Matrix<double, 15, 15> T = Eigen::Matrix<double, 15, 15>::Zero();
   const Eigen::Matrix3d I = Eigen::Matrix3d::Identity();
   T.block<3, 3>(0, 3) = I;   // dp <- dp
@@ -353,19 +352,6 @@ static Eigen::Matrix<double, 15, 15> build_T_ov_to_okvis(const Eigen::Matrix3d &
   T.block<3, 3>(9, 9) = I;   // dbg <- dbg
   T.block<3, 3>(12, 12) = I; // dba <- dba
   return T;
-}
-
-static Eigen::Matrix<double, 15, 15> build_T_okvis_to_ov(const Eigen::Matrix3d &Rws) {
-  // Inverse of build_T_ov_to_okvis:
-  // dtheta_body = Rws^T * dtheta_world, and reorder back to OV layout.
-  Eigen::Matrix<double, 15, 15> Tinv = Eigen::Matrix<double, 15, 15>::Zero();
-  const Eigen::Matrix3d I = Eigen::Matrix3d::Identity();
-  Tinv.block<3, 3>(0, 3) = Rws.transpose(); // dtheta_body <- dtheta_world
-  Tinv.block<3, 3>(3, 0) = I;              // dp <- dp
-  Tinv.block<3, 3>(6, 6) = I;              // dv <- dv
-  Tinv.block<3, 3>(9, 9) = I;              // dbg <- dbg
-  Tinv.block<3, 3>(12, 12) = I;            // dba <- dba
-  return Tinv;
 }
 
 int main(int argc, char **argv) {
@@ -402,13 +388,12 @@ int main(int argc, char **argv) {
     const double R_err = rot_angle_rad(R_recon.transpose() * Rws_e);
     std::cout << std::setprecision(6) << "recon errors: |p|=" << p_err << " |v|=" << v_err << " angle=" << R_err << " rad\n";
 
-    // 3) Convert OV error state (defined on q_GtoI with JPL left perturbation) into OKVIS-style error state.
-    // In OV, dtheta is in the IMU/body frame (because it perturbs R_GtoI on the left).
-    // In OKVIS, we use dtheta in the world frame (left perturbation on Rws = R_GtoI^T).
-    const Eigen::Matrix<double, 15, 15> T_e = build_T_ov_to_okvis(Rws_e);
-    const Eigen::Matrix<double, 15, 15> T_s_inv = build_T_okvis_to_ov(Rws_s);
+    // 3) Convert OV error-state coordinates -> GTSAM state error coordinates.
+    // OV uses left perturbation on R_GtoI (world->body), so dtheta is in the body frame.
+    // We convert to a standard state error on Rws = R_GtoI^T (body->world) with dtheta in the world frame.
+    const Eigen::Matrix<double, 15, 15> T_e = build_T_ov_to_gtsam_state(Rws_e);
     const Eigen::Matrix<double, 15, 15> covRK4 = T_e * pack.Sigma * T_e.transpose();
-    const Eigen::Matrix<double, 15, 15> jacRK4 = T_e * pack.Phi * T_s_inv;
+    const Eigen::Matrix<double, 15, 15> jac_e_wrt_xs_ov = T_e * pack.Phi;
 
     // 4) Build maps (Tangent).
     const Maps15 maps = BuildMaps15_Tangent(Rws_s, dR, dP, dV, pack.dt);
@@ -416,7 +401,7 @@ int main(int argc, char **argv) {
     // 5) Compute Sigma_z and JincBias from RK4-equivalent cov/jac.
     const Eigen::Matrix<double, 15, 15> Sigma_z = maps.covG_inv * covRK4 * maps.covG_inv.transpose();
     const Eigen::Matrix<double, 9, 6> JincBias_bg_ba_rk4 =
-        maps.G_inv.topLeftCorner<9, 9>() * jacRK4.topRightCorner<9, 6>();
+        maps.G_inv.topLeftCorner<9, 9>() * jac_e_wrt_xs_ov.topRows(9).rightCols(6);
 
     // Also output swapped [ba,bg] column order.
     // swapBias maps [ba,bg] -> [bg,ba], so applying it twice returns to original.
@@ -436,7 +421,7 @@ int main(int argc, char **argv) {
       ofs << std::setprecision(6) << "# recon_errors: |p|=" << p_err << " |v|=" << v_err << " angle_rad=" << R_err << "\n\n";
 
       appendMatrixBlock(ofs, "covRK4_from_openvins_pack", covRK4);
-      appendMatrixBlock(ofs, "jacRK4_from_openvins_pack", jacRK4);
+      appendMatrixBlock(ofs, "jacRK4_from_openvins_pack", jac_e_wrt_xs_ov);
       appendMatrixBlock(ofs, "Sigma_z_from_openvins_pack", Sigma_z);
       appendMatrixBlock(ofs, "JincBias_bg_ba_rk4", JincBias_bg_ba_rk4);
       appendMatrixBlock(ofs, "JincBias_ba_bg_rk4", JincBias_ba_bg_rk4);

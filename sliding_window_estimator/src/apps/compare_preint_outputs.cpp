@@ -19,6 +19,27 @@ static inline Eigen::Matrix3d crossMx(const Eigen::Vector3d &v) {
   return m;
 }
 
+// Same criterion as swift_vio/imu/CovPropConfig.hpp::expectNearAbsRel:
+// tol = absTol + relTol * max(|ref|, |est|), checked entry-wise.
+static bool expectNearAbsRel(const Eigen::MatrixXd &ref, const Eigen::MatrixXd &est, double absTol, double relTol) {
+  if (ref.rows() != est.rows() || ref.cols() != est.cols()) {
+    throw std::runtime_error("expectNearAbsRel: dimension mismatch");
+  }
+  for (int r = 0; r < ref.rows(); ++r) {
+    for (int c = 0; c < ref.cols(); ++c) {
+      const double a = ref(r, c);
+      const double b = est(r, c);
+      const double diff = std::abs(a - b);
+      const double scale = std::max(std::abs(a), std::abs(b));
+      const double tol = absTol + relTol * scale;
+      if (diff > tol) {
+        return false;
+      }
+    }
+  }
+  return true;
+}
+
 static inline std::string trim(const std::string &s) {
   size_t b = 0;
   while (b < s.size() && std::isspace(static_cast<unsigned char>(s[b])))
@@ -356,13 +377,11 @@ int main(int argc, char **argv) {
     const double rel_dP = err_dP / std::max(1.0, dP_gtsam.norm());
     const double rel_dV = err_dV / std::max(1.0, dV_gtsam.norm());
 
-    const double Sigma_diff_max = maxAbs(Sigma_z_ov - Sigma_z_gtsam);
-    const double Sigma_ref_max = maxAbs(Sigma_z_gtsam);
-    const double Sigma_rel = Sigma_diff_max / std::max(1.0, Sigma_ref_max);
-
-    const double J_diff_max = maxAbs(JincBias_ba_bg_ov - JincBias_ba_bg_gtsam);
-    const double J_ref_max = maxAbs(JincBias_ba_bg_gtsam);
-    const double J_rel = J_diff_max / std::max(1.0, J_ref_max);
+    // Teacher-style per-entry abs+rel check (same as CovPropConfig.hpp::expectNearAbsRel).
+    constexpr double kAbsTol = 1e-4;
+    constexpr double kRelTol = 1e-2;
+    const bool Sigma_ok = expectNearAbsRel(Sigma_z_gtsam, Sigma_z_ov, kAbsTol, kRelTol);
+    const bool J_ok = expectNearAbsRel(JincBias_ba_bg_gtsam, JincBias_ba_bg_ov, kAbsTol, kRelTol);
 
     const double sym_ov = maxAbs(Sigma_z_ov - Sigma_z_ov.transpose());
     const double sym_gs = maxAbs(Sigma_z_gtsam - Sigma_z_gtsam.transpose());
@@ -377,7 +396,6 @@ int main(int argc, char **argv) {
     constexpr double kThVecAbs = 1e-6;
     constexpr double kThVecRel = 1e-3;
     constexpr double kThDt = 1e-12;
-    constexpr double kThRel = 1e-3;
     constexpr double kThSym = 1e-8;
     constexpr double kThMinEig = -1e-8;
 
@@ -402,14 +420,12 @@ int main(int argc, char **argv) {
     check("  dt < 1e-12", err_dt < kThDt);
 
     std::cout << "\nSigma_z checks:\n";
-    std::cout << "  maxAbs(diff)            = " << Sigma_diff_max << "\n";
-    std::cout << "  rel                     = " << Sigma_rel << "   (den=max(1,maxAbs(ref)))\n";
-    check("  Sigma_z rel < 1e-3", Sigma_rel < kThRel);
+    std::cout << "  absTol=" << kAbsTol << " relTol=" << kRelTol << "\n";
+    check("  Sigma_z abs+rel (entrywise)", Sigma_ok);
 
     std::cout << "\nJincBias checks:\n";
-    std::cout << "  maxAbs(diff)            = " << J_diff_max << "\n";
-    std::cout << "  rel                     = " << J_rel << "   (den=max(1,maxAbs(ref)))\n";
-    check("  JincBias rel < 1e-3", J_rel < kThRel);
+    std::cout << "  absTol=" << kAbsTol << " relTol=" << kRelTol << "\n";
+    check("  JincBias abs+rel (entrywise)", J_ok);
 
     std::cout << "\nSanity checks:\n";
     std::cout << "  Sigma_z_ov symmetry maxAbs(S-S^T)   = " << sym_ov << "\n";
