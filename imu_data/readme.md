@@ -44,6 +44,10 @@ rosrun sliding_window_estimator compare_preint_outputs \
   --ov_pack_yaml /ws/src/swift_vio/imu_data/imu_openvins_prop_preint_gtsam.yaml \
   --gtsam_all /ws/src/swift_vio/imu_data/gtsam_ref_out/gtsam_ref_preint_all.txt
 
+rosrun sliding_window_estimator compare_preint_outputs2 \
+  --ov_pack_yaml /ws/src/swift_vio/imu_data/imu_openvins_prop_preint_gtsam.yaml \
+  --gtsam_all /ws/src/swift_vio/imu_data/gtsam_ref_out/gtsam_ref_preint_all.txt
+
 
 ```
 root@liuyi:/ws# rosrun sliding_window_estimator compare_preint_outputs \
