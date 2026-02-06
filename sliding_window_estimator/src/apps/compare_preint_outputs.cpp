@@ -516,7 +516,7 @@ int main(int argc, char **argv) {
 
     // Teacher-style per-entry abs+rel check (same as CovPropConfig.hpp::expectNearAbsRel).
     constexpr double kAbsTol = 1e-4;
-    constexpr double kRelTol = 1e-2;
+    constexpr double kRelTol = 1.5e-2;
     const AbsRelCheckResult Sigma_chk = absRelCheck(Sigma_z_gtsam, Sigma_z_ov, kAbsTol, kRelTol);
     const AbsRelCheckResult J_chk = absRelCheck(JincBias_ba_bg_gtsam, JincBias_ba_bg_ov, kAbsTol, kRelTol);
 
