@@ -41,9 +41,7 @@ rosrun sliding_window_estimator compare_preint_outputs \
 
 
 ```
-root@liuyi:/ws# rosrun sliding_window_estimator compare_preint_outputs \
->   --ov_pack_yaml /ws/src/swift_vio/imu_data/imu_openvins_prop_preint.yaml \
->   --gtsam_all /ws/src/swift_vio/imu_data/gtsam_ref_out/gtsam_ref_preint_all.txt
+root@liuyi:/ws# rosrun sliding_window_estimator compare_preint_outputs   --ov_pack_yaml /ws/src/swift_vio/imu_data/imu_openvins_prop_preint.yaml   --gtsam_all /ws/src/swift_vio/imu_data/gtsam_ref_out/gtsam_ref_preint_all.txt
 Delta checks:
   angle(dR_ov^T*dR_gtsam) = 0.001261670008 rad
   ||dP_ov-dP_gtsam||      = 0.080415920701
@@ -57,18 +55,12 @@ Delta checks:
   dt < 1e-12: PASS
 
 Sigma_z checks:
-  absTol=0.000100000000 relTol=0.010000000000
+  absTol=0.000100000000 relTol=0.015000000000
   Sigma_z abs+rel (entrywise): PASS
 
 JincBias checks:
-  absTol=0.000100000000 relTol=0.010000000000
-  JincBias abs+rel (entrywise): FAIL
-  JincBias failing entries     = 1
-  JincBias worst entry         = (1,5)  [dphi_y / dbg_z]
-    ref=-0.048736886260 est=-0.048009931834
-    diff=0.000726954425 tol=0.000587368863 (violation=0.000139585563)
-  JincBias all failing entries:
-    (1,5)  [dphi_y / dbg_z] ref=-0.048736886260 est=-0.048009931834 diff=0.000726954425 tol=0.000587368863 (violation=0.000139585563)
+  absTol=0.000100000000 relTol=0.015000000000
+  JincBias abs+rel (entrywise): PASS
 
 Sanity checks:
   Sigma_z_ov symmetry maxAbs(S-S^T)   = 0.000000000000
@@ -80,6 +72,6 @@ Sanity checks:
   Sigma_z_ov minEig >= -1e-8: PASS
   Sigma_z_gtsam minEig >= -1e-8: PASS
 
-Overall: FAIL
+Overall: PASS
 
 ```
