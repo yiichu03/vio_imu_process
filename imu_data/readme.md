@@ -84,3 +84,19 @@ Overall: PASS
 rosrun sliding_window_estimator compare_vinsmono_gtsam \
   --vins_all  /ws/src/swift_vio/imu_data/vins_preint_pack.txt \
   --gtsam_all /ws/src/swift_vio/imu_data/gtsam_ref_out/gtsam_ref_preint_all.txt
+
+
+# ORB-SLAM3 vs GTSAM (9D preint + 6D bias RW)
+# 1) 先在 ORB-SLAM3 容器里跑 exporter，得到 orb_preint_pack.txt
+# 2) 拷贝到这里：/ws/src/swift_vio/imu_data/orb_preint_pack.txt
+#
+# 生成对应的 GTSAM 参考输出（注意：这是 9D + biasRW 的 reference，和 Combined 15D 不同）
+rosrun sliding_window_estimator gtsam_ref_orb_preint_from_txt \
+  /ws/src/swift_vio/imu_data/imu_data_Tangent_0.txt \
+  /ws/src/swift_vio/imu_data/cpc_config_Tangent_0.yaml \
+  /ws/src/swift_vio/imu_data/gtsam_ref_out_orb
+
+# 对比 ORB vs GTSAM
+rosrun sliding_window_estimator compare_orbslam3_gtsam \
+  --orb_all  /ws/src/swift_vio/imu_data/orb_preint_pack.txt \
+  --gtsam_all /ws/src/swift_vio/imu_data/gtsam_ref_out_orb/gtsam_ref_orb_preint_all.txt
