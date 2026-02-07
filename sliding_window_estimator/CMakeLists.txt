@@ -296,14 +296,14 @@ target_link_libraries(vi_bundle_adjustment ${PROJECT_NAME})
 add_executable(propag_by_preint src/apps/propag_by_preint.cpp)
 target_link_libraries(propag_by_preint ${PROJECT_NAME} GTest::gtest)
 
-add_executable(check_jincbias_from_openvins_yaml src/apps/check_jincbias_from_openvins_yaml.cpp)
-target_link_libraries(check_jincbias_from_openvins_yaml ${PROJECT_NAME})
-
 add_executable(gtsam_ref_preint_from_txt src/apps/gtsam_ref_preint_from_txt.cpp)
 target_link_libraries(gtsam_ref_preint_from_txt ${PROJECT_NAME})
 
 add_executable(compare_preint_outputs src/apps/compare_preint_outputs.cpp)
 target_link_libraries(compare_preint_outputs ${PROJECT_NAME})
+
+add_executable(compare_vinsmono_gtsam src/apps/compare_vinsmono_gtsam.cpp)
+target_link_libraries(compare_vinsmono_gtsam ${PROJECT_NAME})
 
 add_executable(imu_file_smoketest src/apps/imu_file_smoketest.cpp)
 target_link_libraries(imu_file_smoketest ${PROJECT_NAME} gflags)

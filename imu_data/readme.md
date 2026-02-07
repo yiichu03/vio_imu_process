@@ -1,5 +1,9 @@
 文件夹有🔓时候 sudo chown -R $USER:$USER /路径/到/文件夹
 
+docker start swift_vio_noetic_dev
+docker exec -it swift_vio_noetic_dev bash
+source /opt/ros/noetic/setup.bash
+source /ws/devel/setup.bash
 
 新增源码：check_jincbias_from_openvins_yaml.cpp
 
@@ -75,3 +79,8 @@ Sanity checks:
 Overall: PASS
 
 ```
+
+# VINS MONO vs GTSAM
+rosrun sliding_window_estimator compare_vinsmono_gtsam \
+  --vins_all  /ws/src/swift_vio/imu_data/vins_preint_pack.txt \
+  --gtsam_all /ws/src/swift_vio/imu_data/gtsam_ref_out/gtsam_ref_preint_all.txt

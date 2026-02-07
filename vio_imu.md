@@ -1,3 +1,162 @@
+# 预积分转预积分：
+
+```
+Let's work with four repos, 
+Orbslam3, vins mono, fastlio2, openvins, so you need to build vins mono too 🙂.
+The goal is given a sequence of imu data, get the preintegrated factor's jacobians and covariance, in accordance with gtsam error state definition.
+The gtsam error definition is like 
+\mathbf{p} &= \widehat{\mathbf{p}} + \mbf R \delta \mathbf{p}, \;
+\mathbf{R} = \widehat{\mathbf{R}} \Exp(\delta \boldsymbol{\theta}), \;
+\mathbf v = \widehat{\mathbf{v}} + \delta \mathbf v, \\
+\mathbf{b}_g &= \widehat{\mathbf{b}}_g + \delta \mathbf{b}_g, \;
+\mathbf{b}_a = \widehat{\mathbf{b}}_a + \delta \mathbf{b}_a.
+
+The preintegration factor is defined as preint(x_s, x_e, z_{s:e}). Its jacobians are J_s = dpreint / d\delta x_s, J_e = dpreint / d\delta x_e, and cov_preint = the covariance of the preint measurement.
+The preint measurement is also defined as in gtsam,
+\mathbf{r}_{\theta} &= -\Log\left(\widehat{\mathbf{R}}_{e}\,\mathbf{R}_{e}^{\top}\right),
+ \\
+\mathbf{r}_{v} &= \mathbf{R}_s^{\top} \big(\widehat{\mathbf{v}}_{e} - \mathbf{v}_{e}\big), \\
+\mathbf{r}_{p} &= \mathbf{R}_s^{\top} \big(\widehat{\mathbf{p}}_{e} - \mathbf{p}_{e}\big), \\ 
+\mathbf{r}_b &= \mathbf{b}_s - \mathbf{b}_e
+
+For repos such as ORBSLAM3 and VINS Mono,  to compute the preint factor jac and cov, we first use the repo's imu preint factor, getting their jac' and cov', 
+And next convert them to the gtsam version by multiplying with the jac of the gtsam error state relative to the repo's error state.
+
+For repos such as fastlio2 and openvins, to compute the preint factor jac and cov, we first use the repo's imu propagation function to compute the transition matrix \Phi, and end state.
+For the jacs relative to gtsam error states, it can be obtained by analytical forms based on the preint factor definitions.
+For the jacs relative to biases, it can be obtained by multiplying the analytic jac of the preint factor to the repo's error state and the \Phi blocks for biases.
+For the cov of the preint factor, it can be obtained by left and right multiplying the propagated cov matrix with the analytic jac of the preint factor to the repo's error state.
+
+
+Regards,
+Jianzhu Huai按照老师布置的任务要求( imu_data_Tangent_0.txt  cpc_config_Tangent_0.yaml )，分析一下工程代码角度实现的可行性和思路，我现在已经在ubuntu16的docker里面成功编译了vins mono, 在ubuntu18的docker里面成功编译了orbslam3，我下一步应该怎么办？你建议先从vinsmono还是先从orbslam3下手。 哦，openvins的转换已经成功了，你可以参考我们完成openvins的思路，首先是用于跑实验结果的imu data放在了imu_data文件夹下面，然后我们有一个tool文件夹下放了一个 export_imu_preint_pack.cpp 代码输出 imu_openvins_prop_preint.yaml 文件，之后我会将这个yaml文件复制粘贴到老师的swift_vio项目下，用里面的 compare_preint_outputs.cpp 代码去把结果和直接处理imu data的gtsam preint比较确认转换过程无误。所以我们也可以在vinsmono或者orbslam3仓库里面新建一个代码文件（输入为imu_data里面的imu_data_tangent_0.txt和cpc_config_tangent_0.yaml，读取输入部分你可以参考export_imu_preint_pack.cpp）用来调用库里的函数得到preint结果，并在这个代码里面把库里的preint结果转换为gtsam tangent格式的preint直，也保存为yaml文件，然后我们再去老师swift_vio项目那边使用compare代码对比结果（如果不适应的话，你也可以再写一个compare代码，只要相对、绝对误差计算比较的核心代码一致就可以）。  请你仔细分析一下，给出你的建议和规划。
+```
+
+建议先从 VINS-Mono 下手。
+
+原因（工程实现难度）
+
+VINS 的 IntegrationBase 已经直接维护了 jacobian(15x15) 和 covariance(15x15)（含 bias 相关项），非常适合像 OpenVINS 一样“导出→转换到 GTSAM tangent→写 YAML→用 compare_preint_outputs 验证”。
+ORB-SLAM3 的 IMU 边本质是 9 维 Inertial 边 + 两个 3 维 bias random-walk 边（看 EdgeInertial + EdgeGyroRW + EdgeAccRW），它的 Preintegrated::C 主要给 9x9 用，想对齐你现在用的 GTSAM Combined(15D) 预积分协方差，后续大概率要补“combined 15D 协方差传播/耦合项”，工作量更大、踩坑更多。
+你下一步怎么做（按 OpenVINS 的成功路径复刻）
+
+先固定“验收链路”：用 swift_vio 里的 gtsam_ref_preint_from_txt 对 imu_data_Tangent_0.txt + cpc_config_Tangent_0.yaml 生成 gtsam_ref_preint_all.txt（你们已有）。
+在 VINS-Mono 仓库里加一个工具程序（风格/输入读取直接照抄 export_imu_preint_pack.cpp）：读同一份 txt + yaml，跑 IntegrationBase 预积分，拿到 delta_q/delta_p/delta_v/sum_dt、covariance、bias Jacobians。
+转换成 compare 需要的 GTSAM tangent 格式并写 YAML（字段名尽量完全复用 OpenVINS 的 schema，这样 compare_preint_outputs 不用改，直接把 --ov_pack_yaml 指向你的 VINS YAML 即可）：
+VINS 内部顺序基本是 [dp, dtheta, dv, dba, dbg]，compare 期望 [dphi, dp, dv, dba, dbg]：核心就是 交换前两个 3 维块（外加确认符号/约定）。
+JincBias_ba_bg_9x6 直接由 VINS 的 jacobian 对应块拼出来（dphi_dbg, dp_dba, dp_dbg, dv_dba, dv_dbg）。
+同时在 YAML 里写 xs_nominal/xe_nominal/dt/gravity，保证 compare 里用 xs/xe 反解出来的 dR/dP/dV 能对上。
+把该 YAML 拷到老师 swift_vio 项目 imu_data/，跑 compare_preint_outputs 做闭环验收。
+ORB-SLAM3 建议放到第二阶段的原因与路线
+
+若你坚持用老师的 compare_preint_outputs（它对的是 GTSAM Combined 15D 的 Sigma_z(15x15)），ORB 那边要么：
+A) 先导出 “9D Sigma + biasRW(6D)” 拼成 15D（通常会和 gtsam combined 的 Sigma_z 不一致）；
+B) 在 ORB 的导出工具里额外实现一套 combined 15D 协方差传播（不改核心库也行，只在 tool 里做），再输出到同一 YAML schema（更可能一次对齐 compare）。
+如果你确认按这个路线走，我可以先把 VINS-Mono 的 exporter 目标 YAML schema + 需要的块映射列成一个“对照表”，然后再开始落地到代码/改 CMake（确保你在 Ubuntu16 容器里一编就能跑）。你更希望 exporter 写在 vins_estimator 包里用 catkin_make/catkin build 跑，还是单独一个纯 CMake 小工具可执行文件？
+
+```
+你得分清楚重点，我看你一直说复用/参考openvins，但是毕竟Openvins是prop转preint， vins mono和orbslam3都只是preint 转gtsam preint，还是不太一样。你不用迁就Openvins，你应该用第一性原理分析我们要完成的关于vins mono和orbslam3的任务。 至于compare代码，你可以不用管现有的compare代码了，你直接再写一个compare2代码吧，只用保证核心对比函数思路是// abs+rel 混合容差:
+      // - 元素很小（scale≈0）：tol≈absTol，退化成“绝对误差比较”，避免除零/夸大。
+      // - 元素很大：tol≈relTol*scale，退化成“相对误差比较”，允许与量级成比例的误差。
+      const double tol = absTol + relTol * scale;
+      const double violation = diff - tol;   就可以。  exporter 写在 vins_estimator 包里用 catkin_make/catkin build 跑就行           结合上面信息，请你重新分析一下思路和路线，先别着急修改代码
+```
+你说得对：VINS/ORB 这两条线的核心不是“prop→preint”，而是**“同一条预积分因子，在不同工程里的误差状态/参数化不同，怎么把 jac’/cov’ 变换到你指定的 GTSAM 误差定义下”**。按第一性原理，我建议把问题拆成两层坐标变换来做。
+
+0) 先把“要输出的对象”说清楚（两类雅可比 + 一个协方差）
+你最终要的是基于你给的 GTSAM 误差状态（你写的那套）下：
+
+因子残差 (r\in\mathbb{R}^{15})（由预积分测量和 ((x_s,x_e)) 定义）
+J_s = ∂r/∂δx_s，J_e = ∂r/∂δx_e（这里的 δx 必须是你给的 GTSAM 误差定义）
+cov_preint（= 残差噪声的协方差），同样是在你选定的残差排列/误差坐标下
+工程里最容易混的是：
+
+状态误差坐标（δx 的定义：p 的扰动是在 body 还是 world？R 左/右扰动？）
+残差排列/坐标（r 的 15 维顺序到底是 [θ,p,v,ba,bg] 还是 [p,θ,v,ba,bg]…）
+做法上建议你先在项目里规定一个统一的 15 维顺序，比如我建议用：
+
+r_order = [rθ, rp, rv, rba, rbg]
+cov_order = 与 r_order 同序
+（你也可以选 [rθ, rv, rp, rbg, rba]，但必须全链路一致：J、cov、compare2 都一致。）
+1) VINS-Mono：它的“repo误差状态”与 GTSAM 的差异点是什么？
+关键差异不在预积分本身，而在状态参数化（这决定了 IMUFactor 输出的 jac’ 是对哪个 δx 求导）：
+
+VINS 的 pose 局部参数化（PoseLocalParameterization）是
+(p' = p + \delta p_{world})
+(R' = R \exp(\delta\theta))（右扰动）
+你要的 GTSAM pose 误差是
+(p' = p + R,\delta p_{body})
+(R' = R \exp(\delta\theta))
+所以对“位置扰动”的坐标变换是第一性原理直接得到的：
+
+(\delta p_{world} = R,\delta p_{body})
+因此 雅可比列变换（从 VINS 的 jac’ 转到 GTSAM jac）：
+(J^{gtsam}{(\cdot,\delta p)} = J^{vins}{(\cdot,\delta p_{world})};R)
+起点用 (R_s)，终点用 (R_e)
+其它块基本一致：
+
+旋转扰动两边都是右扰动（VINS 用 q*q(δθ)），可先当同一坐标
+v、ba、bg 都是加法扰动（同一坐标）
+另外一个“更隐蔽但可控”的差异是残差排列：
+
+VINS 的 IMUFactor 残差顺序是 [p, R, v, ba, bg]（看 O_P/O_R/O_V/O_BA/O_BG）
+你统一用 [R, p, v, ba, bg] 的话，只要对 residual/J/cov 做同样的行列置换即可：
+行置换：换 residual 的 block 顺序
+协方差：(\Sigma^{new} = P,\Sigma^{old},P^\top)
+结论：VINS 这条线是“可以严格做成纯线性坐标变换”的：
+从 IMUFactor 拿到 jac’/cov’，再做（1）行列置换（2）位置列乘 R 的变换，就能得到你要的 GTSAM 版本 J_s/J_e/cov_preint。
+
+2) ORB-SLAM3：它和 GTSAM 误差定义的关系
+ORB 的 pose 更新（ImuCamPose::Update）是：
+
+(t \leftarrow t + R,u_t)（平移扰动在 body）
+(R \leftarrow R\exp(u_r))（右扰动）
+这正好就是你写的 GTSAM pose 误差定义。因此在“状态误差坐标”层面，ORB 基本不需要像 VINS 那样做 (R) 的列变换（最多是你自己选的残差排列置换）。
+
+真正需要你做决策的是：ORB 的 IMU 约束建模并不是一个“Combined 15D 因子”
+
+它的 EdgeInertial 残差是 9 维 [rθ, rv, rp]
+bias random walk 是额外两条边 EdgeGyroRW / EdgeAccRW
+Preintegrated::C 的使用也体现了这一点：惯性边只用 C(0:9,0:9)，bias 部分单独用 C(9,9)、C(12,12) 给 RW 边
+所以你要先确定老师到底要哪一种：
+
+A) 按 ORB 原模型输出：一个 9D 惯性因子 + 两个 3D bias RW 因子（或把它们拼成 15D 但协方差块对角、无交叉项）
+B) 硬对齐 GTSAM CombinedImuFactor 的 15D Σ_z（含交叉项）：ORB 原生并不给这个，需要你自己“重新推/实现 combined 协方差传播”，工作量显著更大
+我建议先选 A（工程可落地、最符合“preint→gtsam误差定义”的任务本意），除非老师明确要求“必须对齐 Combined 的 15x15 Σ_z”。
+
+还有一个很关键的第一性原理点：ORB 的噪声参数是离散化用法（它在 B 里乘了 dt，但 Nga 里没除 dt），所以从 cpc_config_Tangent_0.yaml 的连续噪声密度转换到 ORB 需要显式做：
+
+(n_g = \sigma_{g}; /\sqrt{dt})
+(n_a = \sigma_{a}; /\sqrt{dt})
+(n_{gw} = \sigma_{gw};\sqrt{dt})
+(n_{aw} = \sigma_{aw};\sqrt{dt})
+否则同一段 IMU 下 cov 会系统性对不上（这比“坐标置换”还致命）。
+3) compare2：你要它验证什么？
+你说不用管现有 compare，那我建议 compare2 只做三件事，且全部用你选的统一 order：
+
+读两个结果（gtsam_ref vs repo_export）里的矩阵块
+用你给的 abs+rel 判据做 entry-wise 检查（你选中的那段 tol 逻辑）
+输出 worst violation + 失败条目（和现在 compare 类似）
+对比项建议分层：
+
+必比：cov_preint、J_s、J_e（如果你们确实要因子雅可比）
+辅助 sanity：ΔR/Δp/Δv/DT（用于发现“读数据/单位/重力方向”错误）
+4) 建议路线（先做什么、为什么）
+先把“统一的 residual/cov 顺序”和 ORB 选 A 还是 B 定下来（这一步不定，后面所有矩阵都可能白算）
+先做 VINS：因为它原生就是 15D 因子（IMUFactor 直接给 15 维 residual + jac + cov），你只需要做“置换 + 位置列乘 R”的确定性变换，最容易一次跑通 compare2
+再做 ORB：按你在第 1 步选的模型去导出（A 很快能跑通；B 则进入“自己实现 combined 传播”的难活）
+你回复我 2 个选择，我就能把后续“写 exporter/compare2 时每个矩阵到底怎么排、怎么变换”定成一张清晰的 mapping 表（不改代码也能先把数学关系钉死）：
+
+你最终统一的 15 维 residual 顺序选哪一个？（比如 [θ,p,v,ba,bg]）
+ORB 你要走 A（按原模型/块对角15D）还是 B（强对齐 Combined 15D 含交叉项）？
+
+
+
+
+
+
+
+
 ```
 [propag_by_preint.cpp](sliding_window_estimator/src/apps/propag_by_preint.cpp) [cpc_config_Manifold_0.yaml](imu_data/cpc_config_Manifold_0.yaml) [cpc_config_Tangent_0.yaml](imu_data/cpc_config_Tangent_0.yaml) [imu_data_Manifold_0.txt](imu_data/imu_data_Manifold_0.txt) [imu_data_Tangent_0.txt](imu_data/imu_data_Tangent_0.txt) [README.md](README.md) 我想请你帮我了解当前项目代码，我能用propag_by_preint代码处理Imu data吗？流程是怎样的，我是不是应该去ubuntu环境里配置这个仓库。我现在思路有些混乱，你可以解释一下吗
 
