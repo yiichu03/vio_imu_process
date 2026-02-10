@@ -46,7 +46,7 @@ rosrun sliding_window_estimator compare_preint_outputs \
 
 ```
 root@liuyi:/ws# rosrun sliding_window_estimator compare_preint_outputs   --ov_pack_yaml /ws/src/swift_vio/imu_data/imu_openvins_prop_preint.yaml   --gtsam_all /ws/src/swift_vio/imu_data/gtsam_ref_out/gtsam_ref_preint_all.txt
-Delta checks:
+DDelta checks:
   angle(dR_ov^T*dR_gtsam) = 0.001261670008 rad
   ||dP_ov-dP_gtsam||      = 0.080415920701
   ||dV_ov-dV_gtsam||      = 0.013735819715
@@ -65,6 +65,14 @@ Sigma_z checks:
 JincBias checks:
   absTol=0.000100000000 relTol=0.015000000000
   JincBias abs+rel (entrywise): PASS
+
+J_e_preint checks:
+  absTol=0.000100000000 relTol=0.015000000000
+  J_e_preint abs+rel (entrywise): PASS
+
+J_s_preint checks:
+  absTol=0.000100000000 relTol=0.015000000000
+  J_s_preint abs+rel (entrywise): PASS
 
 Sanity checks:
   Sigma_z_ov symmetry maxAbs(S-S^T)   = 0.000000000000
@@ -85,6 +93,43 @@ rosrun sliding_window_estimator compare_vinsmono_gtsam \
   --vins_all  /ws/src/swift_vio/imu_data/vins_preint_pack.txt \
   --gtsam_all /ws/src/swift_vio/imu_data/gtsam_ref_out/gtsam_ref_preint_all.txt
 
+### 使用vins mono内部函数结果：
+rosrun sliding_window_estimator compare_vinsmono_gtsam \
+  --vins_all  /ws/src/swift_vio/imu_data/vins_preint_pack_analytic.txt \
+  --gtsam_all /ws/src/swift_vio/imu_data/gtsam_ref_out/gtsam_ref_preint_all.txt
+
+### 使用vins mono内部函数结果：
+rosrun sliding_window_estimator compare_vinsmono_gtsam \
+  --vins_all  /ws/src/swift_vio/imu_data/vins_preint_pack_analytic.txt \
+  --gtsam_all /ws/src/swift_vio/imu_data/gtsam_ref_out/gtsam_ref_preint_all.txt
+
+```
+[ OK ] dR
+[ OK ] dP
+[ OK ] dV
+[ OK ] DT
+[ OK ] Sigma_z (z=[dphi,dp,dv,dba,dbg])
+[FAIL] JincBias_ba_bg (rows=[dphi,dp,dv]): max violation at (0,4)
+  a=-0.0420799110401397503 b=-0.0483458147461485396 |a-b|=0.00626590370600878938 tol=0.000825187221192228066 (abs=0.000100000000000000005, rel=0.0149999999999999994)
+[ OK ] J_e_preint (rows z, cols x=[dp,dtheta,dv,dba,dbg])
+[FAIL] J_s_preint (rows z, cols x=[dp,dtheta,dv,dba,dbg]): max violation at (0,13)
+  a=0.0420799110401393062 b=0.0483458147461486298 |a-b|=0.00626590370600932367 tol=0.000825187221192229476 (abs=0.000100000000000000005, rel=0.0149999999999999994)
+compare_vinsmono_gtsam failed: comparison failed
+```
+
+rosrun sliding_window_estimator compare_vinsmono_gtsam \
+  --vins_all  /ws/src/swift_vio/imu_data/vins_preint_pack_fd.txt \
+  --gtsam_all /ws/src/swift_vio/imu_data/gtsam_ref_out/gtsam_ref_preint_all.txt
+```
+[ OK ] dR
+[ OK ] dP
+[ OK ] dV
+[ OK ] DT
+[ OK ] Sigma_z (z=[dphi,dp,dv,dba,dbg])
+[ OK ] JincBias_ba_bg (rows=[dphi,dp,dv])
+[ OK ] J_e_preint (rows z, cols x=[dp,dtheta,dv,dba,dbg])
+[ OK ] J_s_preint (rows z, cols x=[dp,dtheta,dv,dba,dbg])
+```
 
 # ORB-SLAM3 vs GTSAM (9D preint + 6D bias RW)
 # 1) 先在 ORB-SLAM3 容器里跑 exporter，得到 orb_preint_pack.txt
@@ -100,3 +145,15 @@ rosrun sliding_window_estimator gtsam_ref_orb_preint_from_txt \
 rosrun sliding_window_estimator compare_orbslam3_gtsam \
   --orb_all  /ws/src/swift_vio/imu_data/orb_preint_pack.txt \
   --gtsam_all /ws/src/swift_vio/imu_data/gtsam_ref_out_orb/gtsam_ref_orb_preint_all.txt
+```
+[ OK ] dR
+[ OK ] dP
+[ OK ] dV
+[ OK ] DT
+[ OK ] Sigma_z9 (z9=[dphi,dp,dv])
+[ OK ] JincBias_ba_bg (rows=[dphi,dp,dv])
+[ OK ] Sigma_bias_rw (z6=[dba,dbg])
+[ OK ] Sigma_z15 (z15=[dphi,dp,dv,dba,dbg])
+[ OK ] J_e_preint (rows z, cols x=[dp,dtheta,dv,dba,dbg])
+[ OK ] J_s_preint (rows z, cols x=[dp,dtheta,dv,dba,dbg])
+```

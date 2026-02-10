@@ -89,6 +89,109 @@ static std::unordered_map<std::string, Eigen::MatrixXd> readMatrixBlocks(const s
   return blocks;
 }
 
+struct PreintFactorJacobians {
+  Eigen::Matrix<double, 15, 15> J_s = Eigen::Matrix<double, 15, 15>::Zero();
+  Eigen::Matrix<double, 15, 15> J_e = Eigen::Matrix<double, 15, 15>::Zero();
+};
+
+static inline Eigen::Matrix3d skew(const Eigen::Vector3d& v) {
+  Eigen::Matrix3d S;
+  S << 0.0, -v.z(), v.y(), v.z(), 0.0, -v.x(), -v.y(), v.x(), 0.0;
+  return S;
+}
+
+static inline double clamp(double x, double lo, double hi) {
+  return std::max(lo, std::min(hi, x));
+}
+
+static Eigen::Vector3d so3_log(const Eigen::Matrix3d& R) {
+  const double cos_theta = clamp((R.trace() - 1.0) * 0.5, -1.0, 1.0);
+  const double theta = std::acos(cos_theta);
+  Eigen::Vector3d vee;
+  vee << (R(2, 1) - R(1, 2)), (R(0, 2) - R(2, 0)), (R(1, 0) - R(0, 1));
+  if (theta < 1e-9) {
+    return 0.5 * vee;
+  }
+  const double sin_theta = std::sin(theta);
+  if (std::abs(sin_theta) < 1e-12) {
+    return 0.5 * vee;
+  }
+  return (theta / (2.0 * sin_theta)) * vee;
+}
+
+static Eigen::Matrix3d so3_right_jacobian(const Eigen::Vector3d& phi) {
+  const double theta = phi.norm();
+  const Eigen::Matrix3d I = Eigen::Matrix3d::Identity();
+  const Eigen::Matrix3d Phi = skew(phi);
+  const Eigen::Matrix3d Phi2 = Phi * Phi;
+
+  if (theta < 1e-8) {
+    return I - 0.5 * Phi + (1.0 / 12.0) * Phi2;
+  }
+
+  const double theta2 = theta * theta;
+  const double theta3 = theta2 * theta;
+  const double c = std::cos(theta);
+  const double s = std::sin(theta);
+  const double c1 = (1.0 - c) / theta2;
+  const double c2 = (theta - s) / theta3;
+  return I - c1 * Phi + c2 * Phi2;
+}
+
+static Eigen::Matrix3d so3_right_jacobian_inverse(const Eigen::Vector3d& phi) {
+  const double theta = phi.norm();
+  const Eigen::Matrix3d I = Eigen::Matrix3d::Identity();
+  const Eigen::Matrix3d Phi = skew(phi);
+  const Eigen::Matrix3d Phi2 = Phi * Phi;
+
+  if (theta < 1e-8) {
+    return I + 0.5 * Phi + (1.0 / 12.0) * Phi2;
+  }
+
+  const double theta2 = theta * theta;
+  const double half_theta = 0.5 * theta;
+  const double cot_half_theta = std::cos(half_theta) / std::sin(half_theta);
+  const double a = (1.0 / theta2) - (0.5 / theta) * cot_half_theta;
+  return I + 0.5 * Phi + a * Phi2;
+}
+
+static PreintFactorJacobians build_preint_factor_jacobians_local(const Eigen::Matrix3d& dR, const Eigen::Vector3d& dP,
+                                                                  const Eigen::Vector3d& dV, const double dt,
+                                                                  const Eigen::Matrix<double, 9, 6>& JincBias_ba_bg) {
+  const Eigen::Vector3d phi = so3_log(dR);
+  const Eigen::Matrix3d Jr = so3_right_jacobian(phi);
+  const Eigen::Matrix3d Jr_inv = so3_right_jacobian_inverse(phi);
+  const Eigen::Matrix3d I = Eigen::Matrix3d::Identity();
+
+  Eigen::Matrix<double, 15, 15> F = Eigen::Matrix<double, 15, 15>::Zero();
+  F.block<3, 3>(0, 0) = I;
+  F.block<3, 3>(0, 3) = -skew(dP);
+  F.block<3, 3>(0, 6) = dt * I;
+  F.block<3, 3>(3, 3) = I;
+  F.block<3, 3>(6, 3) = -skew(dV);
+  F.block<3, 3>(6, 6) = I;
+  F.block<3, 3>(9, 9) = I;
+  F.block<3, 3>(12, 12) = I;
+
+  Eigen::Matrix<double, 15, 15> G = Eigen::Matrix<double, 15, 15>::Zero();
+  G.block<3, 3>(0, 3) = I;
+  G.block<3, 3>(3, 0) = Jr;
+  G.block<3, 3>(6, 6) = I;
+  G.block<3, 3>(9, 9) = -I;
+  G.block<3, 3>(12, 12) = -I;
+
+  Eigen::Matrix<double, 15, 15> G_inv = G.transpose();
+  G_inv.block<3, 3>(0, 3) = Jr_inv;
+
+  Eigen::Matrix<double, 15, 15> J = F;
+  J.topRightCorner<9, 6>() += G.topLeftCorner<9, 9>() * JincBias_ba_bg;
+
+  PreintFactorJacobians out;
+  out.J_e = G_inv;
+  out.J_s = -G_inv * J;
+  return out;
+}
+
 static bool expectNearAbsRel(const Eigen::MatrixXd& a, const Eigen::MatrixXd& b, double absTol, double relTol, const std::string& what) {
   if (a.rows() != b.rows() || a.cols() != b.cols()) {
     std::cerr << "[FAIL] " << what << ": shape mismatch: " << a.rows() << "x" << a.cols() << " vs " << b.rows() << "x" << b.cols()
@@ -166,6 +269,16 @@ static void compareAll(const std::string& orbAll, const std::string& gtsamAll, d
   const Eigen::MatrixXd Sigma_bias_rw_gtsam = getBlockOrThrow(gtsam, "Sigma_bias_rw_gtsam", gtsamAll);
   const Eigen::MatrixXd Sigma_z15_orb = getBlockOrThrow(orb, "Sigma_z15_orb", orbAll);
   const Eigen::MatrixXd Sigma_z15_gtsam = getBlockOrThrow(gtsam, "Sigma_z15_gtsam", gtsamAll);
+  const Eigen::MatrixXd J_e_preint_orb = getBlockOrThrow(orb, "J_e_preint_orb", orbAll);
+  const Eigen::MatrixXd J_s_preint_orb = getBlockOrThrow(orb, "J_s_preint_orb", orbAll);
+
+  const Eigen::Matrix3d dR_gtsam_m = dR_gtsam;
+  const Eigen::Vector3d dP_gtsam_v = dP_gtsam.col(0);
+  const Eigen::Vector3d dV_gtsam_v = dV_gtsam.col(0);
+  const double DT_gtsam_v = DT_gtsam(0, 0);
+  const Eigen::Matrix<double, 9, 6> JincBias_gtsam_m = JincBias_gtsam;
+  const PreintFactorJacobians jac_gtsam =
+      build_preint_factor_jacobians_local(dR_gtsam_m, dP_gtsam_v, dV_gtsam_v, DT_gtsam_v, JincBias_gtsam_m);
 
   bool ok = true;
   ok &= expectNearAbsRel(dR_orb, dR_gtsam, absTol, relTol, "dR");
@@ -176,6 +289,8 @@ static void compareAll(const std::string& orbAll, const std::string& gtsamAll, d
   ok &= expectNearAbsRel(JincBias_orb, JincBias_gtsam, absTol, relTol, "JincBias_ba_bg (rows=[dphi,dp,dv])");
   ok &= expectNearAbsRel(Sigma_bias_rw_orb, Sigma_bias_rw_gtsam, absTol, relTol, "Sigma_bias_rw (z6=[dba,dbg])");
   ok &= expectNearAbsRel(Sigma_z15_orb, Sigma_z15_gtsam, absTol, relTol, "Sigma_z15 (z15=[dphi,dp,dv,dba,dbg])");
+  ok &= expectNearAbsRel(J_e_preint_orb, jac_gtsam.J_e, absTol, relTol, "J_e_preint (rows z, cols x=[dp,dtheta,dv,dba,dbg])");
+  ok &= expectNearAbsRel(J_s_preint_orb, jac_gtsam.J_s, absTol, relTol, "J_s_preint (rows z, cols x=[dp,dtheta,dv,dba,dbg])");
 
   if (!ok) {
     throw std::runtime_error("comparison failed");
@@ -230,4 +345,3 @@ int main(int argc, char** argv) {
     return EXIT_FAILURE;
   }
 }
-
