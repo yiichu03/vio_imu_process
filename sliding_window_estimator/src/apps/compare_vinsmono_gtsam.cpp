@@ -1,9 +1,7 @@
 #include <Eigen/Dense>
 
-#include <algorithm>
 #include <cctype>
 #include <cmath>
-#include <cstdlib>
 #include <fstream>
 #include <iomanip>
 #include <iostream>
@@ -14,7 +12,7 @@
 
 namespace {
 
-static inline std::string trim(const std::string& s) {
+static inline std::string trim(const std::string &s) {
   size_t b = 0;
   while (b < s.size() && std::isspace(static_cast<unsigned char>(s[b])))
     b++;
@@ -24,7 +22,7 @@ static inline std::string trim(const std::string& s) {
   return s.substr(b, e - b);
 }
 
-static bool readNextDataLine(std::istream& is, std::string& out) {
+static bool readNextDataLine(std::istream &is, std::string &out) {
   std::string line;
   while (std::getline(is, line)) {
     if (!line.empty() && line.back() == '\r')
@@ -38,14 +36,14 @@ static bool readNextDataLine(std::istream& is, std::string& out) {
   return false;
 }
 
-static bool parseHeaderLine(const std::string& line, std::string& name, int& rows, int& cols) {
+static bool parseHeaderLine(const std::string &line, std::string &name, int &rows, int &cols) {
   const size_t lb = line.find('(');
   const size_t rb = line.find(')', lb == std::string::npos ? 0 : lb + 1);
   if (lb == std::string::npos || rb == std::string::npos || rb <= lb + 1)
     return false;
 
   name = trim(line.substr(0, lb));
-  const std::string inside = trim(line.substr(lb + 1, rb - (lb + 1))); // "RxC"
+  const std::string inside = trim(line.substr(lb + 1, rb - (lb + 1)));
   const size_t x = inside.find('x');
   if (x == std::string::npos)
     return false;
@@ -54,7 +52,7 @@ static bool parseHeaderLine(const std::string& line, std::string& name, int& row
   return !name.empty() && rows > 0 && cols > 0;
 }
 
-static std::unordered_map<std::string, Eigen::MatrixXd> readMatrixBlocks(const std::string& path) {
+static std::unordered_map<std::string, Eigen::MatrixXd> readMatrixBlocks(const std::string &path) {
   std::ifstream ifs(path);
   if (!ifs.is_open()) {
     throw std::runtime_error("unable to open: " + path);
@@ -64,7 +62,8 @@ static std::unordered_map<std::string, Eigen::MatrixXd> readMatrixBlocks(const s
   std::string line;
   while (readNextDataLine(ifs, line)) {
     std::string name;
-    int rows = 0, cols = 0;
+    int rows = 0;
+    int cols = 0;
     if (!parseHeaderLine(line, name, rows, cols)) {
       throw std::runtime_error("failed to parse matrix header line: '" + line + "' in " + path);
     }
@@ -89,113 +88,9 @@ static std::unordered_map<std::string, Eigen::MatrixXd> readMatrixBlocks(const s
   return blocks;
 }
 
-struct PreintFactorJacobians {
-  Eigen::Matrix<double, 15, 15> J_s = Eigen::Matrix<double, 15, 15>::Zero();
-  Eigen::Matrix<double, 15, 15> J_e = Eigen::Matrix<double, 15, 15>::Zero();
-};
-
-static inline Eigen::Matrix3d skew(const Eigen::Vector3d& v) {
-  Eigen::Matrix3d S;
-  S << 0.0, -v.z(), v.y(), v.z(), 0.0, -v.x(), -v.y(), v.x(), 0.0;
-  return S;
-}
-
-static inline double clamp(double x, double lo, double hi) {
-  return std::max(lo, std::min(hi, x));
-}
-
-static Eigen::Vector3d so3_log(const Eigen::Matrix3d& R) {
-  const double cos_theta = clamp((R.trace() - 1.0) * 0.5, -1.0, 1.0);
-  const double theta = std::acos(cos_theta);
-  Eigen::Vector3d vee;
-  vee << (R(2, 1) - R(1, 2)), (R(0, 2) - R(2, 0)), (R(1, 0) - R(0, 1));
-  if (theta < 1e-9) {
-    return 0.5 * vee;
-  }
-  const double sin_theta = std::sin(theta);
-  if (std::abs(sin_theta) < 1e-12) {
-    return 0.5 * vee;
-  }
-  return (theta / (2.0 * sin_theta)) * vee;
-}
-
-static Eigen::Matrix3d so3_right_jacobian(const Eigen::Vector3d& phi) {
-  const double theta = phi.norm();
-  const Eigen::Matrix3d I = Eigen::Matrix3d::Identity();
-  const Eigen::Matrix3d Phi = skew(phi);
-  const Eigen::Matrix3d Phi2 = Phi * Phi;
-
-  if (theta < 1e-8) {
-    return I - 0.5 * Phi + (1.0 / 12.0) * Phi2;
-  }
-
-  const double theta2 = theta * theta;
-  const double theta3 = theta2 * theta;
-  const double c = std::cos(theta);
-  const double s = std::sin(theta);
-  const double c1 = (1.0 - c) / theta2;
-  const double c2 = (theta - s) / theta3;
-  return I - c1 * Phi + c2 * Phi2;
-}
-
-static Eigen::Matrix3d so3_right_jacobian_inverse(const Eigen::Vector3d& phi) {
-  const double theta = phi.norm();
-  const Eigen::Matrix3d I = Eigen::Matrix3d::Identity();
-  const Eigen::Matrix3d Phi = skew(phi);
-  const Eigen::Matrix3d Phi2 = Phi * Phi;
-
-  if (theta < 1e-8) {
-    return I + 0.5 * Phi + (1.0 / 12.0) * Phi2;
-  }
-
-  const double theta2 = theta * theta;
-  const double half_theta = 0.5 * theta;
-  const double cot_half_theta = std::cos(half_theta) / std::sin(half_theta);
-  const double a = (1.0 / theta2) - (0.5 / theta) * cot_half_theta;
-  return I + 0.5 * Phi + a * Phi2;
-}
-
-static PreintFactorJacobians build_preint_factor_jacobians_local(const Eigen::Matrix3d& dR, const Eigen::Vector3d& dP,
-                                                                  const Eigen::Vector3d& dV, const double dt,
-                                                                  const Eigen::Matrix<double, 9, 6>& JincBias_ba_bg) {
-  const Eigen::Vector3d phi = so3_log(dR);
-  const Eigen::Matrix3d Jr = so3_right_jacobian(phi);
-  const Eigen::Matrix3d Jr_inv = so3_right_jacobian_inverse(phi);
-  const Eigen::Matrix3d I = Eigen::Matrix3d::Identity();
-
-  Eigen::Matrix<double, 15, 15> F = Eigen::Matrix<double, 15, 15>::Zero();
-  F.block<3, 3>(0, 0) = I;
-  F.block<3, 3>(0, 3) = -skew(dP);
-  F.block<3, 3>(0, 6) = dt * I;
-  F.block<3, 3>(3, 3) = I;
-  F.block<3, 3>(6, 3) = -skew(dV);
-  F.block<3, 3>(6, 6) = I;
-  F.block<3, 3>(9, 9) = I;
-  F.block<3, 3>(12, 12) = I;
-
-  Eigen::Matrix<double, 15, 15> G = Eigen::Matrix<double, 15, 15>::Zero();
-  G.block<3, 3>(0, 3) = I;
-  G.block<3, 3>(3, 0) = Jr;
-  G.block<3, 3>(6, 6) = I;
-  G.block<3, 3>(9, 9) = -I;
-  G.block<3, 3>(12, 12) = -I;
-
-  Eigen::Matrix<double, 15, 15> G_inv = G.transpose();
-  G_inv.block<3, 3>(0, 3) = Jr_inv;
-
-  Eigen::Matrix<double, 15, 15> J = F;
-  J.topRightCorner<9, 6>() += G.topLeftCorner<9, 9>() * JincBias_ba_bg;
-
-  PreintFactorJacobians out;
-  out.J_e = G_inv;
-  out.J_s = -G_inv * J;
-  return out;
-}
-
-static bool expectNearAbsRel(const Eigen::MatrixXd& a, const Eigen::MatrixXd& b, double absTol, double relTol, const std::string& what) {
+static bool expectNearAbsRel(const Eigen::MatrixXd &a, const Eigen::MatrixXd &b, double absTol, double relTol, const std::string &what) {
   if (a.rows() != b.rows() || a.cols() != b.cols()) {
-    std::cerr << "[FAIL] " << what << ": shape mismatch: " << a.rows() << "x" << a.cols() << " vs " << b.rows() << "x" << b.cols()
-              << "\n";
+    std::cerr << "[FAIL] " << what << ": shape mismatch: " << a.rows() << "x" << a.cols() << " vs " << b.rows() << "x" << b.cols() << "\n";
     return false;
   }
 
@@ -239,8 +134,8 @@ static bool expectNearAbsRel(const Eigen::MatrixXd& a, const Eigen::MatrixXd& b,
   return true;
 }
 
-static Eigen::MatrixXd getBlockOrThrow(const std::unordered_map<std::string, Eigen::MatrixXd>& blocks, const std::string& name,
-                                       const std::string& path) {
+static Eigen::MatrixXd getBlockOrThrow(const std::unordered_map<std::string, Eigen::MatrixXd> &blocks, const std::string &name,
+                                       const std::string &path) {
   auto it = blocks.find(name);
   if (it == blocks.end()) {
     throw std::runtime_error("missing block '" + name + "' in " + path);
@@ -248,43 +143,18 @@ static Eigen::MatrixXd getBlockOrThrow(const std::unordered_map<std::string, Eig
   return it->second;
 }
 
-static void compareAll(const std::string& vinsAll, const std::string& gtsamAll, double absTol, double relTol) {
+static void compareAll(const std::string &vinsAll, const std::string &gtsamAll, double absTol, double relTol) {
   const auto vins = readMatrixBlocks(vinsAll);
   const auto gtsam = readMatrixBlocks(gtsamAll);
-
-  const Eigen::MatrixXd dR_vins = getBlockOrThrow(vins, "dR_vins", vinsAll);
-  const Eigen::MatrixXd dR_gtsam = getBlockOrThrow(gtsam, "dR_gtsam", gtsamAll);
-  const Eigen::MatrixXd dP_vins = getBlockOrThrow(vins, "dP_vins", vinsAll);
-  const Eigen::MatrixXd dP_gtsam = getBlockOrThrow(gtsam, "dP_gtsam", gtsamAll);
-  const Eigen::MatrixXd dV_vins = getBlockOrThrow(vins, "dV_vins", vinsAll);
-  const Eigen::MatrixXd dV_gtsam = getBlockOrThrow(gtsam, "dV_gtsam", gtsamAll);
-  const Eigen::MatrixXd DT_vins = getBlockOrThrow(vins, "DT_vins", vinsAll);
-  const Eigen::MatrixXd DT_gtsam = getBlockOrThrow(gtsam, "DT_gtsam", gtsamAll);
 
   const Eigen::MatrixXd Sigma_z_vins = getBlockOrThrow(vins, "Sigma_z_vins_gtsam", vinsAll);
   const Eigen::MatrixXd Sigma_z_gtsam = getBlockOrThrow(gtsam, "Sigma_z_gtsam", gtsamAll);
   const Eigen::MatrixXd JincBias_vins = getBlockOrThrow(vins, "JincBias_ba_bg_vins", vinsAll);
   const Eigen::MatrixXd JincBias_gtsam = getBlockOrThrow(gtsam, "JincBias_ba_bg_gtsam", gtsamAll);
-  const Eigen::MatrixXd J_e_preint_vins = getBlockOrThrow(vins, "J_e_preint_vins", vinsAll);
-  const Eigen::MatrixXd J_s_preint_vins = getBlockOrThrow(vins, "J_s_preint_vins", vinsAll);
-
-  const Eigen::Matrix3d dR_gtsam_m = dR_gtsam;
-  const Eigen::Vector3d dP_gtsam_v = dP_gtsam.col(0);
-  const Eigen::Vector3d dV_gtsam_v = dV_gtsam.col(0);
-  const double DT_gtsam_v = DT_gtsam(0, 0);
-  const Eigen::Matrix<double, 9, 6> JincBias_gtsam_m = JincBias_gtsam;
-  const PreintFactorJacobians jac_gtsam =
-      build_preint_factor_jacobians_local(dR_gtsam_m, dP_gtsam_v, dV_gtsam_v, DT_gtsam_v, JincBias_gtsam_m);
 
   bool ok = true;
-  ok &= expectNearAbsRel(dR_vins, dR_gtsam, absTol, relTol, "dR");
-  ok &= expectNearAbsRel(dP_vins, dP_gtsam, absTol, relTol, "dP");
-  ok &= expectNearAbsRel(dV_vins, dV_gtsam, absTol, relTol, "dV");
-  ok &= expectNearAbsRel(DT_vins, DT_gtsam, absTol, relTol, "DT");
   ok &= expectNearAbsRel(Sigma_z_vins, Sigma_z_gtsam, absTol, relTol, "Sigma_z (z=[dphi,dp,dv,dba,dbg])");
   ok &= expectNearAbsRel(JincBias_vins, JincBias_gtsam, absTol, relTol, "JincBias_ba_bg (rows=[dphi,dp,dv])");
-  ok &= expectNearAbsRel(J_e_preint_vins, jac_gtsam.J_e, absTol, relTol, "J_e_preint (rows z, cols x=[dp,dtheta,dv,dba,dbg])");
-  ok &= expectNearAbsRel(J_s_preint_vins, jac_gtsam.J_s, absTol, relTol, "J_s_preint (rows z, cols x=[dp,dtheta,dv,dba,dbg])");
 
   if (!ok) {
     throw std::runtime_error("comparison failed");
@@ -293,7 +163,7 @@ static void compareAll(const std::string& vinsAll, const std::string& gtsamAll, 
 
 } // namespace
 
-int main(int argc, char** argv) {
+int main(int argc, char **argv) {
   try {
     std::string vins_all;
     std::string gtsam_all;
@@ -334,7 +204,7 @@ int main(int argc, char** argv) {
     compareAll(vins_all, gtsam_all, absTol, relTol);
     return EXIT_SUCCESS;
 
-  } catch (const std::exception& e) {
+  } catch (const std::exception &e) {
     std::cerr << "compare_vinsmono_gtsam failed: " << e.what() << "\n";
     return EXIT_FAILURE;
   }

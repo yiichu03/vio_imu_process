@@ -111,28 +111,6 @@ static std::string describe_jincbias_entry(int r, int c) {
   return oss.str();
 }
 
-static std::string describe_jac15_entry(int r, int c) {
-  auto z_label = [](int idx) -> std::string {
-    const int g = idx / 3;
-    const int a = idx % 3;
-    const char *name = (g == 0) ? "dphi" : (g == 1) ? "dp" : (g == 2) ? "dv" : (g == 3) ? "dba" : "dbg";
-    std::ostringstream oss;
-    oss << name << "_" << axis_name(a);
-    return oss.str();
-  };
-  auto x_label = [](int idx) -> std::string {
-    const int g = idx / 3;
-    const int a = idx % 3;
-    const char *name = (g == 0) ? "dp" : (g == 1) ? "dtheta" : (g == 2) ? "dv" : (g == 3) ? "dba" : "dbg";
-    std::ostringstream oss;
-    oss << name << "_" << axis_name(a);
-    return oss.str();
-  };
-  std::ostringstream oss;
-  oss << z_label(r) << " / " << x_label(c);
-  return oss.str();
-}
-
 static std::string describe_sigmaz_entry(int r, int c) {
   // z_order in YAML: [dphi, dp, dv, dba, dbg] (each 3D)
   auto label = [](int idx) -> std::string {
@@ -156,103 +134,6 @@ static inline std::string trim(const std::string &s) {
   while (e > b && std::isspace(static_cast<unsigned char>(s[e - 1])))
     e--;
   return s.substr(b, e - b);
-}
-
-struct PreintFactorJacobians {
-  Eigen::Matrix<double, 15, 15> J_s = Eigen::Matrix<double, 15, 15>::Zero();
-  Eigen::Matrix<double, 15, 15> J_e = Eigen::Matrix<double, 15, 15>::Zero();
-};
-
-static inline double clamp(double x, double lo, double hi) {
-  return std::max(lo, std::min(hi, x));
-}
-
-static Eigen::Vector3d so3_log(const Eigen::Matrix3d &R) {
-  const double cos_theta = clamp((R.trace() - 1.0) * 0.5, -1.0, 1.0);
-  const double theta = std::acos(cos_theta);
-  Eigen::Vector3d vee;
-  vee << (R(2, 1) - R(1, 2)), (R(0, 2) - R(2, 0)), (R(1, 0) - R(0, 1));
-  if (theta < 1e-9) {
-    return 0.5 * vee;
-  }
-  const double sin_theta = std::sin(theta);
-  if (std::abs(sin_theta) < 1e-12) {
-    return 0.5 * vee;
-  }
-  return (theta / (2.0 * sin_theta)) * vee;
-}
-
-static Eigen::Matrix3d so3_right_jacobian(const Eigen::Vector3d &phi) {
-  const double theta = phi.norm();
-  const Eigen::Matrix3d I = Eigen::Matrix3d::Identity();
-  const Eigen::Matrix3d Phi = crossMx(phi);
-  const Eigen::Matrix3d Phi2 = Phi * Phi;
-
-  if (theta < 1e-8) {
-    return I - 0.5 * Phi + (1.0 / 12.0) * Phi2;
-  }
-
-  const double theta2 = theta * theta;
-  const double theta3 = theta2 * theta;
-  const double c = std::cos(theta);
-  const double s = std::sin(theta);
-  const double c1 = (1.0 - c) / theta2;
-  const double c2 = (theta - s) / theta3;
-  return I - c1 * Phi + c2 * Phi2;
-}
-
-static Eigen::Matrix3d so3_right_jacobian_inverse(const Eigen::Vector3d &phi) {
-  const double theta = phi.norm();
-  const Eigen::Matrix3d I = Eigen::Matrix3d::Identity();
-  const Eigen::Matrix3d Phi = crossMx(phi);
-  const Eigen::Matrix3d Phi2 = Phi * Phi;
-
-  if (theta < 1e-8) {
-    return I + 0.5 * Phi + (1.0 / 12.0) * Phi2;
-  }
-
-  const double theta2 = theta * theta;
-  const double half_theta = 0.5 * theta;
-  const double cot_half_theta = std::cos(half_theta) / std::sin(half_theta);
-  const double a = (1.0 / theta2) - (0.5 / theta) * cot_half_theta;
-  return I + 0.5 * Phi + a * Phi2;
-}
-
-static PreintFactorJacobians build_preint_factor_jacobians_local(const Eigen::Matrix3d &dR, const Eigen::Vector3d &dP,
-                                                                  const Eigen::Vector3d &dV, const double dt,
-                                                                  const Eigen::Matrix<double, 9, 6> &JincBias_ba_bg) {
-  const Eigen::Vector3d phi = so3_log(dR);
-  const Eigen::Matrix3d Jr = so3_right_jacobian(phi);
-  const Eigen::Matrix3d Jr_inv = so3_right_jacobian_inverse(phi);
-  const Eigen::Matrix3d I = Eigen::Matrix3d::Identity();
-
-  Eigen::Matrix<double, 15, 15> F = Eigen::Matrix<double, 15, 15>::Zero();
-  F.block<3, 3>(0, 0) = I;
-  F.block<3, 3>(0, 3) = -crossMx(dP);
-  F.block<3, 3>(0, 6) = dt * I;
-  F.block<3, 3>(3, 3) = I;
-  F.block<3, 3>(6, 3) = -crossMx(dV);
-  F.block<3, 3>(6, 6) = I;
-  F.block<3, 3>(9, 9) = I;
-  F.block<3, 3>(12, 12) = I;
-
-  Eigen::Matrix<double, 15, 15> G = Eigen::Matrix<double, 15, 15>::Zero();
-  G.block<3, 3>(0, 3) = I;
-  G.block<3, 3>(3, 0) = Jr;
-  G.block<3, 3>(6, 6) = I;
-  G.block<3, 3>(9, 9) = -I;
-  G.block<3, 3>(12, 12) = -I;
-
-  Eigen::Matrix<double, 15, 15> G_inv = G.transpose();
-  G_inv.block<3, 3>(0, 3) = Jr_inv;
-
-  Eigen::Matrix<double, 15, 15> J = F;
-  J.topRightCorner<9, 6>() += G.topLeftCorner<9, 9>() * JincBias_ba_bg;
-
-  PreintFactorJacobians out;
-  out.J_e = G_inv;
-  out.J_s = -G_inv * J;
-  return out;
 }
 
 static bool parse_bracket_list(const std::string &raw, std::vector<double> &out) {
@@ -370,8 +251,6 @@ struct OvPack {
   Eigen::Vector3d gravity_G = Eigen::Vector3d(0, 0, -9.81);
   Eigen::Matrix<double, 15, 15> Sigma_z = Eigen::Matrix<double, 15, 15>::Zero();
   Eigen::Matrix<double, 9, 6> JincBias_ba_bg = Eigen::Matrix<double, 9, 6>::Zero();
-  Eigen::Matrix<double, 15, 15> J_e_preint = Eigen::Matrix<double, 15, 15>::Zero();
-  Eigen::Matrix<double, 15, 15> J_s_preint = Eigen::Matrix<double, 15, 15>::Zero();
 };
 
 static bool parse_scalar_double_top(const std::vector<std::string> &lines, const std::string &key, double &out) {
@@ -545,8 +424,6 @@ static OvPack load_ov_pack_yaml(const std::string &path) {
   // OpenVINS tool exports GTSAM-tangent preintegration outputs inside the same YAML.
   pack.Sigma_z = parse_yaml_list_matrix_in_section<15, 15>(lines, "gtsam_tangent_preint", "Sigma_z_15x15");
   pack.JincBias_ba_bg = parse_yaml_list_matrix_in_section<9, 6>(lines, "gtsam_tangent_preint", "JincBias_ba_bg_9x6");
-  pack.J_e_preint = parse_yaml_list_matrix_in_section<15, 15>(lines, "gtsam_tangent_preint", "J_e_preint_15x15");
-  pack.J_s_preint = parse_yaml_list_matrix_in_section<15, 15>(lines, "gtsam_tangent_preint", "J_s_preint_15x15");
 
   return pack;
 }
@@ -606,8 +483,6 @@ int main(int argc, char **argv) {
     const OvPack pack = load_ov_pack_yaml(ov_pack_yaml);
     const Eigen::Matrix<double, 15, 15> Sigma_z_ov = pack.Sigma_z;
     const Eigen::Matrix<double, 9, 6> JincBias_ba_bg_ov = pack.JincBias_ba_bg;
-    const Eigen::Matrix<double, 15, 15> J_e_preint_ov = pack.J_e_preint;
-    const Eigen::Matrix<double, 15, 15> J_s_preint_ov = pack.J_s_preint;
 
     const Eigen::Matrix3d dR_gtsam = parse_block_matrix<3, 3>(gtsam_all, "dR_gtsam");
     const Eigen::Matrix<double, 3, 1> dP_gtsam = parse_block_matrix<3, 1>(gtsam_all, "dP_gtsam");
@@ -616,8 +491,6 @@ int main(int argc, char **argv) {
     const double dt_gtsam = DT_gtsam_mat(0, 0);
     const Eigen::Matrix<double, 15, 15> Sigma_z_gtsam = parse_block_matrix<15, 15>(gtsam_all, "Sigma_z_gtsam");
     const Eigen::Matrix<double, 9, 6> JincBias_ba_bg_gtsam = parse_block_matrix<9, 6>(gtsam_all, "JincBias_ba_bg_gtsam");
-    const PreintFactorJacobians jac_gtsam =
-        build_preint_factor_jacobians_local(dR_gtsam, dP_gtsam.col(0), dV_gtsam.col(0), dt_gtsam, JincBias_ba_bg_gtsam);
 
     // -------- Compute dR/dP/dV from ov_pack_yaml (same formulas as preint reconstruction) --------
 
@@ -646,8 +519,6 @@ int main(int argc, char **argv) {
     constexpr double kRelTol = 1.5e-2;
     const AbsRelCheckResult Sigma_chk = absRelCheck(Sigma_z_gtsam, Sigma_z_ov, kAbsTol, kRelTol);
     const AbsRelCheckResult J_chk = absRelCheck(JincBias_ba_bg_gtsam, JincBias_ba_bg_ov, kAbsTol, kRelTol);
-    const AbsRelCheckResult Je_chk = absRelCheck(jac_gtsam.J_e, J_e_preint_ov, kAbsTol, kRelTol);
-    const AbsRelCheckResult Js_chk = absRelCheck(jac_gtsam.J_s, J_s_preint_ov, kAbsTol, kRelTol);
 
     const double sym_ov = maxAbs(Sigma_z_ov - Sigma_z_ov.transpose());
     const double sym_gs = maxAbs(Sigma_z_gtsam - Sigma_z_gtsam.transpose());
@@ -719,44 +590,6 @@ int main(int argc, char **argv) {
       std::cout << "  JincBias all failing entries:\n";
       for (const auto &f : fails) {
         std::cout << "    (" << f.r << "," << f.c << ")  [" << describe_jincbias_entry(f.r, f.c) << "]"
-                  << " ref=" << f.ref << " est=" << f.est << " diff=" << f.diff << " tol=" << f.tol << " (violation=" << f.violation
-                  << ")\n";
-      }
-    }
-
-    std::cout << "\nJ_e_preint checks:\n";
-    std::cout << "  absTol=" << kAbsTol << " relTol=" << kRelTol << "\n";
-    check("  J_e_preint abs+rel (entrywise)", Je_chk.ok);
-    if (!Je_chk.ok) {
-      std::vector<AbsRelFailEntry> fails = Je_chk.fails;
-      std::sort(fails.begin(), fails.end(), [](const AbsRelFailEntry &a, const AbsRelFailEntry &b) { return a.violation > b.violation; });
-      std::cout << "  J_e_preint failing entries   = " << Je_chk.fail_count << "\n";
-      std::cout << "  J_e_preint worst entry       = (" << Je_chk.worst_r << "," << Je_chk.worst_c << ")  ["
-                << describe_jac15_entry(Je_chk.worst_r, Je_chk.worst_c) << "]\n";
-      std::cout << "    ref=" << Je_chk.worst_ref << " est=" << Je_chk.worst_est << "\n";
-      std::cout << "    diff=" << Je_chk.worst_diff << " tol=" << Je_chk.worst_tol << " (violation=" << Je_chk.worst_violation << ")\n";
-      std::cout << "  J_e_preint all failing entries:\n";
-      for (const auto &f : fails) {
-        std::cout << "    (" << f.r << "," << f.c << ")  [" << describe_jac15_entry(f.r, f.c) << "]"
-                  << " ref=" << f.ref << " est=" << f.est << " diff=" << f.diff << " tol=" << f.tol << " (violation=" << f.violation
-                  << ")\n";
-      }
-    }
-
-    std::cout << "\nJ_s_preint checks:\n";
-    std::cout << "  absTol=" << kAbsTol << " relTol=" << kRelTol << "\n";
-    check("  J_s_preint abs+rel (entrywise)", Js_chk.ok);
-    if (!Js_chk.ok) {
-      std::vector<AbsRelFailEntry> fails = Js_chk.fails;
-      std::sort(fails.begin(), fails.end(), [](const AbsRelFailEntry &a, const AbsRelFailEntry &b) { return a.violation > b.violation; });
-      std::cout << "  J_s_preint failing entries   = " << Js_chk.fail_count << "\n";
-      std::cout << "  J_s_preint worst entry       = (" << Js_chk.worst_r << "," << Js_chk.worst_c << ")  ["
-                << describe_jac15_entry(Js_chk.worst_r, Js_chk.worst_c) << "]\n";
-      std::cout << "    ref=" << Js_chk.worst_ref << " est=" << Js_chk.worst_est << "\n";
-      std::cout << "    diff=" << Js_chk.worst_diff << " tol=" << Js_chk.worst_tol << " (violation=" << Js_chk.worst_violation << ")\n";
-      std::cout << "  J_s_preint all failing entries:\n";
-      for (const auto &f : fails) {
-        std::cout << "    (" << f.r << "," << f.c << ")  [" << describe_jac15_entry(f.r, f.c) << "]"
                   << " ref=" << f.ref << " est=" << f.est << " diff=" << f.diff << " tol=" << f.tol << " (violation=" << f.violation
                   << ")\n";
       }

@@ -98,9 +98,9 @@ rosrun sliding_window_estimator compare_vinsmono_gtsam \
   --vins_all  /ws/src/swift_vio/imu_data/vins_preint_pack_analytic.txt \
   --gtsam_all /ws/src/swift_vio/imu_data/gtsam_ref_out/gtsam_ref_preint_all.txt
 
-### 使用vins mono内部函数结果：
+### 使用有限差分结果：
 rosrun sliding_window_estimator compare_vinsmono_gtsam \
-  --vins_all  /ws/src/swift_vio/imu_data/vins_preint_pack_analytic.txt \
+  --vins_all  /ws/src/swift_vio/imu_data/vins_preint_pack_fd.txt \
   --gtsam_all /ws/src/swift_vio/imu_data/gtsam_ref_out/gtsam_ref_preint_all.txt
 
 ```
@@ -157,3 +157,21 @@ rosrun sliding_window_estimator compare_orbslam3_gtsam \
 [ OK ] J_e_preint (rows z, cols x=[dp,dtheta,dv,dba,dbg])
 [ OK ] J_s_preint (rows z, cols x=[dp,dtheta,dv,dba,dbg])
 ```
+
+
+root@liuyi:/ws# rosrun sliding_window_estimator compare_orbslam3_gtsam \
+>   --orb_all  /ws/src/swift_vio/imu_data/orb_preint_pack.txt \
+>   --gtsam_all /ws/src/swift_vio/imu_data/gtsam_ref_out_orb/gtsam_ref_orb_preint_all.txt
+[FAIL] Sigma_z9 (z9=[dphi,dp,dv]): max violation at (3,2)
+  a=2.28544354438781738 b=-0.0768812670671565473 |a-b|=2.36232481145497397 tol=0.0343816531658172608 (abs=0.000100000000000000005, rel=0.0149999999999999994)
+[FAIL] JincBias_ba_bg (rows=[dphi,dp,dv]): max violation at (2,4)
+  a=-5.28640937805175781 b=0.0306810620263506077 |a-b|=5.31709044007810849 tol=0.0793961406707763689 (abs=0.000100000000000000005, rel=0.0149999999999999994)
+compare_orbslam3_gtsam failed: comparison failed
+root@liuyi:/ws# rosrun sliding_window_estimator compare_vinsmono_gtsam \
+>   --vins_all  /ws/src/swift_vio/imu_data/vins_preint_pack.txt \
+>   --gtsam_all /ws/src/swift_vio/imu_data/gtsam_ref_out/gtsam_ref_preint_all.txt
+[FAIL] Sigma_z (z=[dphi,dp,dv,dba,dbg]): max violation at (3,3)
+  a=657.746155084751877 b=1157.9529903601383 |a-b|=500.206835275386425 tol=17.3693948554020743 (abs=0.000100000000000000005, rel=0.0149999999999999994)
+[FAIL] JincBias_ba_bg (rows=[dphi,dp,dv]): max violation at (2,4)
+  a=-5.31510162699269983 b=0.0306810620263506077 |a-b|=5.34578268901905052 tol=0.0798265244048904921 (abs=0.000100000000000000005, rel=0.0149999999999999994)
+compare_vinsmono_gtsam failed: comparison failed
