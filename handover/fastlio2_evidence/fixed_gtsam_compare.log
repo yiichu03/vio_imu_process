@@ -1,0 +1,8 @@
+Matrix tolerances: abs=0.0001 rel=0.014999999999999999
+[ OK ] Sigma_z15 failures=0 max_abs=2.2422398642172539
+[ OK ] JincBias_ba_bg9x6 failures=0 max_abs=1.1807074347318576
+[ OK ] FAST-LIO covariance symmetry=1.3073986337985843e-12 min_eigen=3.8391948240517992e-05
+[ OK ] GTSAM covariance symmetry=2.8421709430404007e-12 min_eigen=3.8393967249052577e-05
+Mean differences (informational, not matrix PASS): angle=0.0012714491182084983 dp_norm=0.23748267856589203 dv_norm=0.033225902255976013
+[ OK ] same DT failures=0 max_abs=0
+Overall: PASS

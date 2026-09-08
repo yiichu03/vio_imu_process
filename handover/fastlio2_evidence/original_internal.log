@@ -1,0 +1,75 @@
+[ OK ] zero rotation eps=1e-05 native F23 max_abs=6.5512e-12
+[ OK ] zero rotation eps=1e-05 noise covariance vs physical FD max_abs=1.31589e-14
+[ OK ] zero rotation eps=1e-05 full covariance max_abs=4.24799e-13
+[ OK ] zero rotation eps=1e-06 native F23 max_abs=8.22666e-11
+[ OK ] zero rotation eps=1e-06 noise covariance vs physical FD max_abs=2.21326e-13
+[ OK ] zero rotation eps=1e-06 full covariance max_abs=5.08163e-12
+[ OK ] zero rotation eps=1e-07 native F23 max_abs=5.83867e-10
+[ OK ] zero rotation eps=1e-07 noise covariance vs physical FD max_abs=1.73472e-12
+[ OK ] zero rotation eps=1e-07 full covariance max_abs=3.67194e-11
+[ OK ] zero rotation prior covariance symmetry=4.33681e-19 min_eigen=0.028
+[FAIL] rotating eps=1e-05 native F23 max_abs=0.0140351 failures=9 worst=(4,3) analytic=0 numerical=-0.0140351
+[ OK ] rotating eps=1e-05 noise covariance vs physical FD max_abs=2.80563e-14
+[FAIL] rotating eps=1e-05 full covariance max_abs=9.11381e-05 failures=129 worst=(5,12) analytic=0.00102105 numerical=0.000929916
+[FAIL] rotating eps=1e-06 native F23 max_abs=0.0140351 failures=9 worst=(4,3) analytic=0 numerical=-0.0140351
+[ OK ] rotating eps=1e-06 noise covariance vs physical FD max_abs=2.07767e-13
+[FAIL] rotating eps=1e-06 full covariance max_abs=9.11381e-05 failures=129 worst=(5,12) analytic=0.00102105 numerical=0.000929916
+[FAIL] rotating eps=1e-07 native F23 max_abs=0.0140351 failures=9 worst=(4,3) analytic=0 numerical=-0.0140351
+[ OK ] rotating eps=1e-07 noise covariance vs physical FD max_abs=2.29269e-12
+[FAIL] rotating eps=1e-07 full covariance max_abs=9.11381e-05 failures=129 worst=(5,12) analytic=0.00102105 numerical=0.000929916
+[ OK ] rotating prior covariance symmetry=2.60209e-18 min_eigen=0.0227778
+[FAIL] large step eps=1e-05 native F23 max_abs=0.44866 failures=9 worst=(5,4) analytic=0 numerical=-0.44866
+[ OK ] large step eps=1e-05 noise covariance vs physical FD max_abs=3.14609e-14
+[FAIL] large step eps=1e-05 full covariance max_abs=0.0218935 failures=129 worst=(12,5) analytic=0.00120173 numerical=-0.0206918
+[FAIL] large step eps=1e-06 native F23 max_abs=0.44866 failures=9 worst=(5,4) analytic=0 numerical=-0.44866
+[ OK ] large step eps=1e-06 noise covariance vs physical FD max_abs=4.34052e-13
+[FAIL] large step eps=1e-06 full covariance max_abs=0.0218935 failures=129 worst=(12,5) analytic=0.00120173 numerical=-0.0206918
+[FAIL] large step eps=1e-07 native F23 max_abs=0.44866 failures=9 worst=(5,4) analytic=0 numerical=-0.44866
+[ OK ] large step eps=1e-07 noise covariance vs physical FD max_abs=3.30442e-12
+[FAIL] large step eps=1e-07 full covariance max_abs=0.0218935 failures=129 worst=(12,5) analytic=0.00120173 numerical=-0.0206918
+[ OK ] large step prior covariance symmetry=6.93889e-18 min_eigen=0.00490444
+[ OK ] zero gyro bias9x6 eps=1e-05 max_abs=1.89292e-11
+[ OK ] zero gyro bias9x6 eps=1e-06 max_abs=3.74201e-10
+[ OK ] zero gyro bias9x6 eps=1e-07 max_abs=3.03874e-09
+[ OK ] zero gyro raw P23 symmetry=1.73472e-18 min_eigen=-7.38515e-20
+[ OK ] zero gyro mapped Sigma15 symmetry=1.73472e-18 min_eigen=1.99921e-06
+[ OK ] zero gyro replay Phi max_abs=0
+[ OK ] zero gyro replay P max_abs=0
+[ OK ] bias cancelled stationary bias9x6 eps=1e-05 max_abs=1.89292e-11
+[ OK ] bias cancelled stationary bias9x6 eps=1e-06 max_abs=8.59534e-11
+[ OK ] bias cancelled stationary bias9x6 eps=1e-07 max_abs=3.03874e-09
+[ OK ] bias cancelled stationary raw P23 symmetry=1.73472e-18 min_eigen=-7.38515e-20
+[ OK ] bias cancelled stationary mapped Sigma15 symmetry=1.73472e-18 min_eigen=1.99921e-06
+[ OK ] bias cancelled stationary replay Phi max_abs=0
+[ OK ] bias cancelled stationary replay P max_abs=0
+[ OK ] stationary position max_abs=0
+[ OK ] stationary velocity max_abs=0
+[ OK ] tiny rotation bias9x6 eps=1e-05 max_abs=2.48505e-10
+[ OK ] tiny rotation bias9x6 eps=1e-06 max_abs=1.47365e-09
+[ OK ] tiny rotation bias9x6 eps=1e-07 max_abs=1.5377e-08
+[ OK ] tiny rotation raw P23 symmetry=8.67362e-19 min_eigen=-3.83681e-20
+[ OK ] tiny rotation mapped Sigma15 symmetry=1.30104e-18 min_eigen=1.99921e-06
+[ OK ] tiny rotation replay Phi max_abs=0
+[ OK ] tiny rotation replay P max_abs=0
+[FAIL] large increments bias9x6 eps=1e-05 max_abs=5.86458 failures=27 worst=(7,5) analytic=-0.860483 numerical=-6.72506
+[FAIL] large increments bias9x6 eps=1e-06 max_abs=5.86458 failures=27 worst=(7,5) analytic=-0.860483 numerical=-6.72506
+[FAIL] large increments bias9x6 eps=1e-07 max_abs=5.86458 failures=27 worst=(7,5) analytic=-0.860483 numerical=-6.72506
+[ OK ] large increments raw P23 symmetry=4.85723e-17 min_eigen=-1.48842e-19
+[ OK ] large increments mapped Sigma15 symmetry=5.55112e-17 min_eigen=6.38405e-06
+[ OK ] large increments replay Phi max_abs=0
+[ OK ] large increments replay P max_abs=0
+[FAIL] 10s changing axes bias9x6 eps=1e-05 max_abs=174.736 failures=27 worst=(4,4) analytic=-217.425 numerical=-42.6895
+[FAIL] 10s changing axes bias9x6 eps=1e-06 max_abs=174.736 failures=27 worst=(4,4) analytic=-217.425 numerical=-42.6895
+[FAIL] 10s changing axes bias9x6 eps=1e-07 max_abs=174.736 failures=27 worst=(4,4) analytic=-217.425 numerical=-42.6895
+[ OK ] 10s changing axes raw P23 symmetry=1.64846e-12 min_eigen=-3.04524e-19
+[ OK ] 10s changing axes mapped Sigma15 symmetry=1.42109e-12 min_eigen=3.97348e-05
+[ OK ] 10s changing axes replay Phi max_abs=0
+[ OK ] 10s changing axes replay P max_abs=0
+[FAIL] irregular dt bias9x6 eps=1e-05 max_abs=0.434157 failures=27 worst=(7,5) analytic=-0.209715 numerical=-0.643872
+[FAIL] irregular dt bias9x6 eps=1e-06 max_abs=0.434157 failures=27 worst=(7,5) analytic=-0.209715 numerical=-0.643872
+[FAIL] irregular dt bias9x6 eps=1e-07 max_abs=0.434157 failures=27 worst=(7,5) analytic=-0.209715 numerical=-0.643872
+[ OK ] irregular dt raw P23 symmetry=2.77556e-17 min_eigen=-2.18406e-19
+[ OK ] irregular dt mapped Sigma15 symmetry=2.77556e-17 min_eigen=3.97011e-06
+[ OK ] irregular dt replay Phi max_abs=0
+[ OK ] irregular dt replay P max_abs=0
+[FAIL] FAST-LIO native IMU internal suite

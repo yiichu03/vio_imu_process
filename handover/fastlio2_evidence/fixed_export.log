@@ -1,0 +1,9 @@
+[ OK ] configured gravity max_abs=0
+[ OK ] preserved gravity max_abs=0
+[ OK ] native P23 symmetry=1.3074e-12 min_eigen=-2.43726e-18
+[ OK ] mapped Sigma15 symmetry=1.3074e-12 min_eigen=3.83919e-05
+[ OK ] fixed IMU bias9x6 eps=1e-05 max_abs=6.32418e-07
+[ OK ] fixed IMU bias9x6 eps=1e-06 max_abs=5.49049e-07
+[ OK ] fixed IMU bias9x6 eps=1e-07 max_abs=6.26967e-06
+[ OK ] export dt=9.9949999999999992 samples=2000 wrote=/home/mars_ugv/docker_ws/catkin_ws/src/FAST_LIO/imu_data/validation_20260908_fixed/fastlio_preint_pack.txt
+GTSAM agreement is NOT checked here; run compare_fastlio_gtsam separately.

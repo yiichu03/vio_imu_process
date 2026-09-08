@@ -1,6 +1,6 @@
 # IMU 传播与预积分验证：项目交接总览
 
-更新日期：2026-09-08。VINS、OpenVINS、ORB 的本次修订已推送；本文及中心证据随本次交接文档提交发布。工作区根文件是本地入口，中心仓库 `PROJECT_HANDOVER.md` 是在线副本。
+更新日期：2026-09-08。VINS `f052fb5`、FAST-LIO2 `e487ddd` 的修复、验证源码及实验结果已提交推送；中心 FAST-LIO2 比较器已随 `9cc3f11` 推送。本文同步发布状态及文档入口。工作区根文件是本地入口，中心仓库 `PROJECT_HANDOVER.md` 是用于在线交接的同步副本。
 
 ## 目的与总结
 
@@ -16,7 +16,7 @@
 | GTSAM | 参考生成器可运行，重新生成的参考矩阵与归档一致 | 作为对照基准交接，不是“验证了整个 GTSAM” |
 | OKVIS | 已有 RK4 传播及研究测试代码 | 可交接代码；本轮未完整复跑其全部测试 |
 | IMU preint | 已有传播与预积分互相转换的实验代码 | 本文对应中心仓库相关程序，未定位独立同名仓库 |
-| FAST-LIO2 | 主要是环境/驱动适配，尚无本任务验证链路 | 没有验证代码链接可交接；明确说明未开展 |
+| FAST-LIO2 | 两处核心修复后，固定输入的协方差、bias Jacobian 及内部回归通过 | `e487ddd` 已推送至个人仓库；原版失败证据保留 |
 
 这里的“通过”仅指列明的测试。早期需求原文还包括因子对起点、终点状态的 `J_s/J_e`，但当前跨库比较器已移除这两项。因此，不能把本表表述为“除 FAST-LIO2 外，所有早期需求都已完整验收”；若老师仍要 `J_s/J_e`，需要单独确认、补齐。原始需求保存在 [历史需求汇编](OUTDATED_vio_imu.md)，归档不等于取消需求。
 
@@ -24,8 +24,8 @@
 
 - 固定输入：`imu_data_Tangent_0.txt` 和 `cpc_config_Tangent_0.yaml`，2000 条 IMU，时间为 0～9.995 秒，采样间隔 0.005 秒。不能仅根据 YAML 中 `rate: 100` 推断实际输入频率。
 - 保持输入、bias、重力和噪声配置一致，先处理坐标系、旋转扰动和 bias 顺序差异，再做数值比较。输出 bias 列顺序为 `[ba,bg]`。
-- 当前跨库矩阵判据逐元素为 `|a-b| <= 1e-4 + 0.015*max(|a|,|b|)`；VINS 本轮修复没有放宽此阈值。通过不表示与 GTSAM 数值完全相等。
-- VINS/OpenVINS 对照 Combined 15D；ORB 对照 9D 预积分加独立 bias random walk 模型，不能混用两类参考协方差。
+- 当前跨库矩阵判据逐元素为 `|a-b| <= 1e-4 + 0.015*max(|a|,|b|)`；VINS/FAST-LIO2 本轮修复没有放宽此阈值。通过不表示与 GTSAM 数值完全相等。
+- VINS/OpenVINS/FAST-LIO2 对照 Combined 15D；ORB 对照 9D 预积分加独立 bias random walk 模型，不能混用两类参考协方差。
 - 本轮没有进行完整相机/IMU 数据集的轨迹回归，也没有证明所有输入、运动或时长都通过。
 
 ## 1. ORB-SLAM3
@@ -70,9 +70,9 @@ GitHub：[验证仓库](https://github.com/yiichu03/openvins)，被测代码 `e9
 
 ## 4. GTSAM
 
-GitHub：[中心验证仓库](https://github.com/yiichu03/vio_imu_process)，被测程序版本 `d851804`；本次交接修订仅更新文档与证据；[参考生成器与比较器目录](https://github.com/yiichu03/vio_imu_process/tree/main/sliding_window_estimator/src/apps)。
+GitHub：[中心验证仓库](https://github.com/yiichu03/vio_imu_process)，此前被测程序版本 `d851804`；原参考生成器及三个比较器未改，本次另增 FAST-LIO2 比较器，已随 `9cc3f11` 提交推送；[参考生成器与比较器目录](https://github.com/yiichu03/vio_imu_process/tree/main/sliding_window_estimator/src/apps)。
 
-主要文件与改动：新增 `gtsam_ref_preint_from_txt.cpp` 生成 Combined 15D 参考，`gtsam_ref_orb_preint_from_txt.cpp` 生成 ORB 对应的 9D 参考；三个 `compare_*.cpp` 负责逐元素比较。这些是我们交接的外层验证工具，不是我们重新实现的 GTSAM 核心。
+主要文件与改动：新增 `gtsam_ref_preint_from_txt.cpp` 生成 Combined 15D 参考，`gtsam_ref_orb_preint_from_txt.cpp` 生成 ORB 对应的 9D 参考；原三个比较器及本次 `compare_fastlio_gtsam.cpp` 负责逐元素比较。这些是我们交接的外层验证工具，不是我们重新实现的 GTSAM 核心。
 
 实验与结果：2026-09-08 读取同一 IMU 与配置重新生成两类参考，输出文件与归档版的 SHA-256 完全一致；这些参考用于上述三条链路的独立比较。[生成日志与校验记录](imu_data/validation_20260908/README.md)。
 
@@ -100,18 +100,21 @@ GitHub：[实验主程序](https://github.com/yiichu03/vio_imu_process/blob/main
 
 ## 7. FAST-LIO2
 
-最新状态：已完成只读源码分析，拟议方案见 [FAST-LIO2 最小验证方案（待批准，未实现）](handover/FASTLIO2_PLAN.md)。实现需用户批准。
+2026-09-08：用户已批准最小方案、核心修复/重跑及提交推送。验证代码和原版/修复版结果已随 [e487ddd](https://github.com/yiichu03/FAST_LIO/commit/e487ddd) 发布到 [个人 FAST-LIO2 仓库](https://github.com/yiichu03/FAST_LIO)；中心比较器版本为 `9cc3f11`。最新说明见 [FAST-LIO2 当前验证状态](https://github.com/yiichu03/FAST_LIO/blob/main/imu_data/README.md)，[修复版实验记录](https://github.com/yiichu03/FAST_LIO/blob/main/imu_data/validation_20260908_fixed/README.md)；[中心状态副本](handover/FASTLIO2_STATUS.md) 用于在线交接。
 
-主要已有工作：`docker_fastlio2/` 的容器/构建环境，及 `catkin_ws/src/FAST_LIO` 中与 Livox 驱动有关的适配；涉及 `CMakeLists.txt`、`package.xml`、`src/laserMapping.cpp`、`src/preprocess.cpp/.h`。这些不是本任务的协方差/Jacobian 验证工具。
+主要新增文件为 `src/tools/export_fastlio_preint_pack.cpp`、`imu_validation_common.hpp`、`test_fastlio_imu_propagation.cpp` 和独立 CMake；`esekfom.hpp` 增加读取实际离散 F 的只读接口，并修复两处 `scalar_type(1/2)` 为 `scalar_type(0.5)`。整数除法原来先得到 0，导致误差传播应有的旋转被漏掉。修复改变真实内部 F/协方差，不能称为“核心未改”。中心新增 `compare_fastlio_gtsam.cpp` 和 14 项比较器控制测试。原有 Livox 驱动适配保留，不混为新增验证成果。
 
-实验与结果：未找到“读取统一 IMU → 导出传播 → 转 GTSAM → 独立比较”的已实现验证链路，也没有相应 PASS 记录。
+实验与结果：原版固定 IMU 对照中，协方差 119 个、bias Jacobian 26 个元素超差；修复后两项均为 0 个超差。[原版失败证据](https://github.com/yiichu03/FAST_LIO/blob/main/imu_data/validation_20260908/README.md) 独立保留。输入与参考文件哈希一致，阈值仍为 `abs=1e-4, rel=1.5e-2`。有限差分只用于检查，不替换正式解析输出。
 
-需求判断：尚未完成；正在分析最小验证方案，须经用户批准后实现。可以直接向老师说明“FAST-LIO2 仅做过环境准备，没有形成可交接的验证代码”。[官方算法仓库](https://github.com/hku-mars/FAST_LIO) 仅供说明来源，**不是本项目验证成果链接**。
+3 种单步的 F/噪声/协方差、6 种序列及固定输入的完整 bias Jacobian 均以 3 个差分步长检查并通过；另有 S2 几何分支专用回归通过。独立工具、中心比较器及本地已有 Livox 适配环境中的 `fastlio_mapping` 重新编译成功；驱动适配未纳入提交。另从提交 `e487ddd` 的干净源码重新构建独立工具，内部测试及 GTSAM 对照均通过，确认独立 IMU 验证不依赖这些本地改动。CTest 和 14 项比较器控制测试通过；主程序只编译，不是雷达轨迹实验。
+
+需求判断：修复版已满足本项目列明的固定输入 IMU 协方差/bias Jacobian 核对需求，成果已发布至个人仓库。[官方来源](https://github.com/hku-mars/FAST_LIO/tree/7cc4175de6f8ba2edf34bab02a42195b141027e9) 仅说明基线，不包含本次工具和修复。没有开展雷达建图或轨迹回归，也不包含稀疏分支、所有输入条件或 `J_s/J_e` 的验收。
 
 ## 文档与版本维护
 
 - 新入口为本文和各仓库当前 README；旧文统一加 `OUTDATED_`，保留原内容并说明被什么取代。规则见 [AGENTS.md](handover/WORKSPACE_AGENTS.md)。
 - 本次归档 15 份：根目录 6 份历史笔记；OpenVINS 学习笔记 1 份；中心仓库 3 份；ORB 旧说明 2 份；VINS 旧接口/原型说明 3 份。上游 README、许可证和实验原始数据未按“过时文档”处理。
-- VINS `f052fb5`、OpenVINS `2dfca41`、ORB `32508ed` 已提交并推送。本次中心文档修订收录总览和复核日志，不改变中心比较器。
+- FAST-LIO2 实现后另将最初提案归档为中心 `handover/OUTDATED_FASTLIO2_PLAN.md`，用 `FASTLIO2_STATUS.md` 承载当前结果；不改写提案的历史状态。
+- VINS `f052fb5`、OpenVINS `2dfca41`、ORB `32508ed`、FAST-LIO2 `e487ddd` 和中心比较器 `9cc3f11` 均已提交并推送；后续文档提交不改变这些被测计算。FAST-LIO2 只保留已有五个驱动适配文件为本地未提交改动，未混入验证成果。
 - 根目录不是 Git 仓库。本文同步至中心仓库 `PROJECT_HANDOVER.md`；工作区维护规则和根目录历史笔记同步至中心 `handover/`，保留本地原件。
 - 中心仓库根下的 `imu_data/vins_preint_pack.txt` 仍是旧结果，不能用它代表当前修复版。新日志使用 VINS 仓库 `validation_20260908_core/vins_preint_core.txt`，避免混淆。

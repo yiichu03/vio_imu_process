@@ -1,0 +1,7 @@
+Test project /home/mars_ugv/docker_ws/imu_validation_build
+    Start 1: fastlio_imu_internal
+1/1 Test #1: fastlio_imu_internal .............   Passed    0.94 sec
+
+100% tests passed, 0 tests failed out of 1
+
+Total Test time (real) =   0.94 sec

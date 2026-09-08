@@ -1,0 +1,8 @@
+[ OK ] configured gravity max_abs=0
+[ OK ] preserved gravity max_abs=0
+[ OK ] native P23 symmetry=1.53477e-12 min_eigen=-7.56536e-18
+[ OK ] mapped Sigma15 symmetry=1.53477e-12 min_eigen=3.82847e-05
+[FAIL] fixed IMU bias9x6 eps=1e-05 max_abs=455.155 failures=27 worst=(3,5) analytic=-4.71634 numerical=450.439
+[FAIL] fixed IMU bias9x6 eps=1e-06 max_abs=455.155 failures=27 worst=(3,5) analytic=-4.71634 numerical=450.439
+[FAIL] fixed IMU bias9x6 eps=1e-07 max_abs=455.155 failures=27 worst=(3,5) analytic=-4.71634 numerical=450.439
+[FAIL] export_fastlio_preint_pack: Internal validation failed; output not written

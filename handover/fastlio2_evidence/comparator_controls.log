@@ -1,0 +1,15 @@
+[ OK ] identical synthetic matrices: exit 0
+[ OK ] changed covariance: exit 1
+[ OK ] missing bias block: exit 1
+[ OK ] wrong expected dimensions: exit 1
+[ OK ] NaN: exit 1
+[ OK ] infinity: exit 1
+[ OK ] duplicate block: exit 1
+[ OK ] truncated input: exit 1
+[ OK ] extra row tokens: exit 1
+[ OK ] negative tolerance: exit 1
+[ OK ] nonfinite tolerance: exit 1
+[ OK ] zero interval: exit 1
+[ OK ] different interval: exit 1
+[ OK ] invalid rotation: exit 1
+[ OK ] All 14 comparator control tests (synthetic, not algorithm validation)

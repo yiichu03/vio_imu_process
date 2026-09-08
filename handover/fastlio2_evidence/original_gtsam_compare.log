@@ -1,0 +1,11 @@
+[rospack] Warning: cannot create rospack cache directory /.ros: boost::filesystem::create_directory: Permission denied: "/.ros"
+[rospack] Warning: cannot create rospack cache directory /.ros: boost::filesystem::create_directory: Permission denied: "/.ros"
+[rospack] Unable to create temporary cache file /.ros/.rospack_cache.XxQ37M: No such file or directory
+Matrix tolerances: abs=0.0001 rel=0.014999999999999999
+[FAIL] Sigma_z15 failures=119 max_abs=43.2854714213791 worst=(3,4) actual=235.84740444565938 reference=192.56193302428028 diff=43.2854714213791 tol=3.537811066684891
+[FAIL] JincBias_ba_bg9x6 failures=26 max_abs=456.01586658283577 worst=(3,5) actual=-4.7163448317612851 reference=451.29952175107451 diff=456.01586658283577 tol=6.7695928262661171
+[ OK ] FAST-LIO covariance symmetry=1.5347723092418164e-12 min_eigen=3.8284695501630952e-05
+[ OK ] GTSAM covariance symmetry=2.8421709430404007e-12 min_eigen=3.8393967249052577e-05
+Mean differences (informational, not matrix PASS): angle=0.0012714491182084983 dp_norm=0.23748267856589203 dv_norm=0.033225902255976013
+[ OK ] same DT failures=0 max_abs=0
+Overall: FAIL
