@@ -1,3 +1,5 @@
+> OUTDATED（2026-09-08）：本文仍描述 J_s/J_e、额外均值/协方差块等旧版比较项，与当前代码不一致。当前检查范围和命令见 [README](README.md)，以下历史推导保留备查。
+
 # Swift VIO `imu_data`：`compare` 与 `gtsam_ref` 五个核心逻辑
 
 **统一第一性原理（先固定再比较）**

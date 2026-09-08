@@ -1,3 +1,5 @@
+> OUTDATED（2026-09-08）：历史命令和多轮 PASS/FAIL 混合记录，包含已移除的 J_s/J_e 与旧版 VINS/ORB 输出。请以 [当前验证入口](README.md) 为准，以下原始实验记录保留，不作当前验收结论。
+
 文件夹有🔓时候 sudo chown -R $USER:$USER /路径/到/文件夹
 
 docker start swift_vio_noetic_dev

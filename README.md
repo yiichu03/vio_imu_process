@@ -1,3 +1,5 @@
+> IMU 验证交接入口：[项目目的、七类方法与版本总览](PROJECT_HANDOVER.md) · [复现命令与实验结果](imu_data/README.md) · [文档维护规则](handover/WORKSPACE_AGENTS.md)。以下保留上游项目说明。
+
 README
 ======
 
