@@ -311,6 +311,9 @@ target_link_libraries(compare_vinsmono_gtsam ${PROJECT_NAME})
 add_executable(compare_orbslam3_gtsam src/apps/compare_orbslam3_gtsam.cpp)
 target_link_libraries(compare_orbslam3_gtsam ${PROJECT_NAME})
 
+add_executable(compare_fastlio_gtsam src/apps/compare_fastlio_gtsam.cpp)
+target_link_libraries(compare_fastlio_gtsam ${PROJECT_NAME})
+
 add_executable(imu_file_smoketest src/apps/imu_file_smoketest.cpp)
 target_link_libraries(imu_file_smoketest ${PROJECT_NAME} gflags)
 
