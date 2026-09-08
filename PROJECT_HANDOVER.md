@@ -100,6 +100,8 @@ GitHub：[实验主程序](https://github.com/yiichu03/vio_imu_process/blob/main
 
 ## 7. FAST-LIO2
 
+最新状态：已完成只读源码分析，拟议方案见 [FAST-LIO2 最小验证方案（待批准，未实现）](handover/FASTLIO2_PLAN.md)。实现需用户批准。
+
 主要已有工作：`docker_fastlio2/` 的容器/构建环境，及 `catkin_ws/src/FAST_LIO` 中与 Livox 驱动有关的适配；涉及 `CMakeLists.txt`、`package.xml`、`src/laserMapping.cpp`、`src/preprocess.cpp/.h`。这些不是本任务的协方差/Jacobian 验证工具。
 
 实验与结果：未找到“读取统一 IMU → 导出传播 → 转 GTSAM → 独立比较”的已实现验证链路，也没有相应 PASS 记录。
